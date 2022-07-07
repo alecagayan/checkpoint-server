@@ -15,6 +15,11 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import java.util.Collections;
 import java.util.Map;
 
+import javax.annotation.processing.Generated;
+
+import java.text.SimpleDateFormat;  
+import java.util.Date;
+
 import org.json.*;
 
 @RestController
@@ -30,14 +35,45 @@ public class Controller {
     public String signin(@RequestParam String student_id, @RequestParam String account) {
         System.out.println("Signin Called with for student_id : " + student_id);
         Database db = new Database();
-
-
         if (db.checkIn(student_id, account) == 0) {
             return "Signed in " + student_id + " for " + account;
         } else {
             return "Error";
         }
     }
+
+    @GetMapping("start")
+    public String start() {
+        System.out.println("Start Called");
+        Database db = new Database();
+        int result = db.startMeeting();
+        System.out.println("Result: " + result);
+        if (result == 0) {
+            Date date = new Date();  
+            SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");  
+            return "Meeting started at " + formatter.format(date);
+        } else {
+            return "Error";
+        }    
+    }
+
+    @GetMapping("checkmeeting")
+    public int checkMeeting() {
+        System.out.println("Check Meeting Called");
+        Database db = new Database();
+        int result = db.checkMeeting();
+        return result;
+    }
+
+    @GetMapping("attendees")
+    public String attendees() {
+        System.out.println("Attendees Called");
+        Database db = new Database();
+        String result = db.getAttendees();
+        System.out.println("Result: " + result);
+        return result;
+    }
+
 
     @PostMapping(
     value = "/test", 

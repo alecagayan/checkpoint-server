@@ -8,7 +8,6 @@ import java.sql.ResultSet;
 
 import org.json.JSONObject;
 
-
 /***
  * Interface between API and database.
  */
@@ -34,35 +33,88 @@ public class Database {
         int result = 1;
         int count = 0;
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM herndonrobotics WHERE student_id = ?");
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM logs WHERE student_id = ?");
             //stmt.setString(1, account);
             stmt.setString(1, student_id);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 //add one to the count and append current time to the database
                 count = rs.getInt("count") + 1;
-                PreparedStatement stmt2 = conn.prepareStatement("UPDATE herndonrobotics SET count = ? WHERE student_id = ?");
+                PreparedStatement stmt2 = conn.prepareStatement("UPDATE logs SET count = ? WHERE student_id = ?");
                 //stmt2.setString(1, account);
                 stmt2.setInt(1, count);
                 stmt2.setString(2, student_id);
                 stmt2.executeUpdate();
 
                 //append the current date and time to meetings column
-                PreparedStatement stmt3 = conn.prepareStatement("UPDATE herndonrobotics SET meetings = CONCAT(meetings, ',', CURRENT_TIMESTAMP) WHERE student_id = ?");
+                PreparedStatement stmt3 = conn.prepareStatement("UPDATE logs SET meetings = CONCAT(meetings, ',', CURRENT_TIMESTAMP) WHERE student_id = ?");
                 //stmt3.setString(1, account);
                 stmt3.setString(1, student_id);
                 stmt3.executeUpdate();
 
+                //append the student_id to the students column in the meetings table
+                PreparedStatement stmt4 = conn.prepareStatement("UPDATE meetings SET students = CONCAT(students, ',', ?) WHERE meeting = curdate()");
+                stmt4.setString(1, student_id);
+                stmt4.executeUpdate();
                 result = 0;
 
             } else {
                 //create a new row in the database
-                PreparedStatement stmt4 = conn.prepareStatement("INSERT INTO herndonrobotics (student_id, count, meetings) VALUES (?, 1, CURRENT_TIMESTAMP)");
+                PreparedStatement stmt5 = conn.prepareStatement("INSERT INTO logs (student_id, count, meetings) VALUES (?, 1, CURRENT_TIMESTAMP)");
                 //stmt4.setString(1, account);
-                stmt4.setString(1, student_id);
-                stmt4.executeUpdate();
+                stmt5.setString(1, student_id);
+                stmt5.executeUpdate();
 
-                result = 1;
+                //append the student_id to the students column in the meetings table
+                PreparedStatement stmt6 = conn.prepareStatement("UPDATE meetings SET students = CONCAT(students, ',', ?) WHERE meeting = curdate()");
+                stmt6.setString(1, student_id);
+                stmt6.executeUpdate();
+                result = 0;
+
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public String getAttendees() {
+        //get the students column from the meetings table
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT students FROM meetings WHERE meeting = curdate()");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = rs.getString("students");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public int startMeeting() {
+        //create new row in meetings table with current date 
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO meetings (meeting, students) VALUES (curdate(), '0000000')");
+            stmt.executeUpdate();
+            result = 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+
+        }
+        return result;
+    }
+
+    public int checkMeeting() {
+        //check if there is a meeting today
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM meetings WHERE meeting = curdate()");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = 0;
             }
         } catch (SQLException e) {
             e.printStackTrace();

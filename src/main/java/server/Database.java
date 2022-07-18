@@ -93,6 +93,25 @@ public class Database {
         return result;
     }
 
+    public int getPercentages() {
+        //get the amount of meetings from the meetings table
+        // each row is a meeting
+        int meetings = 0;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT COUNT(*) FROM meetings");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                meetings = rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+    }
+
+    return meetings;
+    }
+
+
+
     public int startMeeting() {
         //create new row in meetings table with current date 
         int result = 1;

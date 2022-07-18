@@ -57,6 +57,15 @@ public class Controller {
         }    
     }
 
+    @GetMapping("percentages")
+    public String percentages() {
+        System.out.println("Percentages Called");
+        Database db = new Database();
+        String result = db.getPercentages();
+        System.out.println("Result: " + result);
+        return result;
+    }
+
     @GetMapping("checkmeeting")
     public int checkMeeting() {
         System.out.println("Check Meeting Called");

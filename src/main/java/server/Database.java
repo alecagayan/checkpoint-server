@@ -93,7 +93,7 @@ public class Database {
         return result;
     }
 
-    public int getPercentages() {
+    public String getPercentages() {
         //get the amount of meetings from the meetings table
         // each row is a meeting
         int meetings = 0;
@@ -107,7 +107,23 @@ public class Database {
             e.printStackTrace();
     }
 
-    return meetings;
+    double meetingThreshold = meetings * 0.6;
+
+    //go through every student in logs table and check if their meeting count is above the meeting threshold
+    //if so, add them to the result string
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM logs");
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                if (rs.getInt("count") > meetingThreshold) {
+                    result += rs.getString("student_id") + ",";
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
     }
 
 

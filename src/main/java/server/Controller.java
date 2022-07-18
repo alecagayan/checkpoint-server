@@ -58,10 +58,10 @@ public class Controller {
     }
 
     @GetMapping("percentages")
-    public int percentages() {
+    public String percentages() {
         System.out.println("Percentages Called");
         Database db = new Database();
-        int result = db.getPercentages();
+        String result = db.getPercentages();
         System.out.println("Result: " + result);
         return result;
     }

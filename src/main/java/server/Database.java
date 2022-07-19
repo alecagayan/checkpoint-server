@@ -32,12 +32,26 @@ public class Database {
     public int checkIn(String student_id, String account) {
         int result = 1;
         int count = 0;
+        String mtngresult = "";
         try {
             PreparedStatement stmt = conn.prepareStatement("SELECT * FROM logs WHERE student_id = ?");
             //stmt.setString(1, account);
             stmt.setString(1, student_id);
             ResultSet rs = stmt.executeQuery();
+
             if (rs.next()) {
+
+                //check if student_id is in meeting
+                PreparedStatement mtngstmt = conn.prepareStatement("SELECT students FROM meetings WHERE meeting = curdate()");
+                ResultSet mtrs = mtngstmt.executeQuery();
+                if (mtrs.next()) {
+                    mtngresult = rs.getString("students");
+                }
+
+                // check if student_id is in result
+                if (!mtngresult.contains(student_id)) {
+
+
                 //add one to the count and append current time to the database
                 count = rs.getInt("count") + 1;
                 PreparedStatement stmt2 = conn.prepareStatement("UPDATE logs SET count = ? WHERE student_id = ?");
@@ -57,6 +71,7 @@ public class Database {
                 stmt4.setString(1, student_id);
                 stmt4.executeUpdate();
                 result = 0;
+                }
 
             } else {
                 //create a new row in the database

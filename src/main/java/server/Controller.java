@@ -66,6 +66,15 @@ public class Controller {
         return result;
     }
 
+    @GetMapping("getstudents")
+    public String listStudents() {
+        System.out.println("List Students Called");
+        Database db = new Database();
+        String result = db.getStudents();
+        System.out.println("Result: " + result);
+        return result;
+    }
+
     @GetMapping("checkmeeting")
     public int checkMeeting() {
         System.out.println("Check Meeting Called");

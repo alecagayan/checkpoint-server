@@ -93,6 +93,22 @@ public class Database {
         return result;
     }
 
+    public String getStudents() {
+        //get every student_id from the logs table
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT student_id FROM logs");
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result += rs.getString("student_id") + ",";
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
     public String getPercentages(int percent) {
         //get the amount of meetings from the meetings table
         // each row is a meeting

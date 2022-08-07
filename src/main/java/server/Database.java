@@ -12,7 +12,7 @@ import org.json.JSONObject;
  * Interface between API and database.
  */
 public class Database {
-    private static final String url = "jdbc:mysql://localhost:3306/checkpoint";
+    private static final String url = "jdbc:mysql://192.168.2.2:3306/checkpoint";
     private static final String username = "checkin";
     private static final String password = "Chkpntuser!23";
     private static Connection conn = null;
@@ -25,6 +25,26 @@ public class Database {
             e.printStackTrace();
         }
     }
+
+    // username and password in
+    // 0 = success
+    // 1 = error
+    public int logIn(String login, String password) {
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND password = ?");
+            stmt.setString(1, login);
+            stmt.setString(2, password);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
 
     // username and account in
     // 0 = success
@@ -59,7 +79,7 @@ public class Database {
                 stmt2.setInt(1, count);
                 stmt2.setString(2, student_id);
                 stmt2.executeUpdate();
-
+ 
                 //append the current date and time to meetings column
                 PreparedStatement stmt3 = conn.prepareStatement("UPDATE logs SET meetings = CONCAT(meetings, ',', CURRENT_TIMESTAMP) WHERE student_id = ?");
                 //stmt3.setString(1, account);

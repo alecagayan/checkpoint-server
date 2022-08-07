@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 
@@ -24,11 +25,28 @@ import org.json.*;
 
 @RestController
 @RequestMapping("/rbapi")
+@CrossOrigin(origins = "*")
 public class Controller {
 
     @GetMapping("/hello")
     public String hello() {
         return "Hello World!";
+    }
+
+
+    @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String login(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String login = jsonObject.getString("username");
+        String password = jsonObject.getString("password");
+        String result = "";
+        Database db = new Database();
+        if (db.logIn(login, password) == 0) {
+            result = "{\"token\":\"" + login + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
     }
 
     @GetMapping("signin")

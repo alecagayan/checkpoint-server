@@ -12,7 +12,7 @@ import org.json.JSONObject;
  * Interface between API and database.
  */
 public class Database {
-    private static final String url = "jdbc:mysql://192.168.2.2:3306/checkpoint";
+    private static final String url = "jdbc:mysql://localhost:3306/checkpoint";
     private static final String username = "checkin";
     private static final String password = "Chkpntuser!23";
     private static Connection conn = null;
@@ -38,6 +38,62 @@ public class Database {
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 result = 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    // id, name, email, registrationcode in
+    // 0 = success
+    // 1 = error
+    public int register(String id, String name, String email, String registrationCode) {
+        int result = 1;
+        System.out.println("registration code: " + registrationCode);
+        if(registrationCode.equals("FRC116")) {
+            try {
+                // check if user exists
+                PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
+                stmt.setString(1, id);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    result = 1;
+                } else {
+                    // add user
+                    stmt = conn.prepareStatement("INSERT INTO users (login, name, email) VALUES (?, ?, ?)");
+                    stmt.setString(1, id);
+                    stmt.setString(2, name);
+                    stmt.setString(3, email);
+                    stmt.executeUpdate();
+                    result = 0;
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return result;
+    }
+
+    // username, meetingId in
+    // 0 = success
+    // 1 = error
+    public int checkIn(String username, String meetingId) {
+        int result = 1;
+        try {
+            //get attendee_id from users table
+            PreparedStatement stmt = conn.prepareStatement("SELECT id FROM users WHERE login = ?");
+            stmt.setString(1, username);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String attendeeId = rs.getString("id");
+                // insert into attendees table meeting_id, attendee_id
+                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id) VALUES (?, ?)");
+                stmt.setString(1, meetingId);
+                stmt.setString(2, attendeeId);
+                stmt.executeUpdate();
+                result = 0;
+
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -135,7 +191,7 @@ public class Database {
     // username and account in
     // 0 = success
     // 1 = error
-    public int checkIn(String student_id, String account) {
+    public int checkIn_old(String student_id, String account) {
         int result = 1;
         int count = 0;
         String mtngresult = "";

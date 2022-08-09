@@ -49,6 +49,24 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String register(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String id = jsonObject.getString("id");
+        String name = jsonObject.getString("name");
+        String email = jsonObject.getString("email");
+        String registrationCode = jsonObject.getString("registrationcode");
+
+        String result = "";
+        Database db = new Database();
+        if (db.register(id, name, email, registrationCode) == 0) {
+            result = "{\"result\":\"" + "1" + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
     @PostMapping(value = "/adduser", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String adduser(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
@@ -59,6 +77,23 @@ public class Controller {
         Database db = new Database();
         if (db.addUser(name, email, username) == 0) {
             result = "{\"user\":\"" + username + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/checkin", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String checkin(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String username = jsonObject.getString("login");
+        String token = jsonObject.getString("storedToken");
+        String meetingId = jsonObject.getString("meetingId");
+        String result = "";
+        Database db = new Database();
+        System.out.println("checking in user " + username + " with token " + token + " for meeting " + meetingId);
+        if (db.checkIn(username, meetingId) == 0) {
+            result = "{\"result\":\"" + "1" + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
         }

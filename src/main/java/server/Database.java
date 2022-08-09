@@ -45,6 +45,92 @@ public class Database {
         return result;
     }
 
+    // name, email, username in
+    // 0 = success
+    // 1 = error
+    public int addUser(String name, String email, String username) {
+        int result = 1;
+        if (name == null || name.trim().length() == 0) {
+            return result;
+        }
+        if (email == null || email.trim().length() == 0) {
+            return result;
+        }
+        if (username == null || username.trim().length() == 0) {
+            return result;
+        }
+        try {
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (name, email, login) VALUES (?, ?, ?)");
+            stmt.setString(1, name);
+            stmt.setString(2, email);
+            stmt.setString(3, username);
+            stmt.executeUpdate();
+            result = 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    // return all users in JSON format
+    public String getUsers() {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users");
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") + "\",\"name\":\"" + rs.getString("name") + "\",\"email\":\"" + rs.getString("email") + "\",\"login\":\"" + rs.getString("login") + "\"},";
+            }
+            if (result.length()>0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+
+    // return all meetings in JSON format
+    public String getMeetings() {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT m.id, m.opentime, m.closetime, m.location, COUNT(a.id) as attendees FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime ASC");
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getInt("id") + 
+                            "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) + 
+                            "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) + 
+                            "\",\"location\":\"" + rs.getString("location") + 
+                            "\",\"attendees\":\"" + rs.getString("attendees") + 
+                            "\"},";
+            }
+            if (result.length()>0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    // create meeting
+    // 0 = success
+    // 1 = error
+    public int createMeeting() {
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO meetings (opentime) VALUES (now())");
+            stmt.executeUpdate();
+            result = 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
 
     // username and account in
     // 0 = success
@@ -179,7 +265,7 @@ public class Database {
 
 
 
-    public int startMeeting() {
+    public int startMeeting_old() {
         //create new row in meetings table with current date 
         int result = 1;
         try {
@@ -206,6 +292,14 @@ public class Database {
             e.printStackTrace();
         }
         return result;
+    }
+
+    private String emptyIfNull(Object o) {
+        if (o == null) {
+            return "";
+        } else {
+            return o.toString();
+        }
     }
 
 }

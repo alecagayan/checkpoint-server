@@ -49,6 +49,49 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "/adduser", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String adduser(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String name = jsonObject.getString("name");
+        String email = jsonObject.getString("email");
+        String username = jsonObject.getString("username");
+        String result = "";
+        Database db = new Database();
+        if (db.addUser(name, email, username) == 0) {
+            result = "{\"user\":\"" + username + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @GetMapping(value = "/users", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String users() {
+        Database db = new Database();
+        String result = db.getUsers();
+        return result;
+    }
+
+    @GetMapping(value = "/meetings", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String meetings() {
+        Database db = new Database();
+        String result = db.getMeetings();
+        return result;
+    }
+
+    @PostMapping(value = "/startmeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String startmeeting(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String result = "";
+        Database db = new Database();
+        if (db.createMeeting() == 0) {
+            result = "{\"meeting\":\"" + "1" + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
     @GetMapping("signin")
     public String signin(@RequestParam String student_id, @RequestParam String account) {
         System.out.println("Signin Called with for student_id : " + student_id);
@@ -64,7 +107,7 @@ public class Controller {
     public String start() {
         System.out.println("Start Called");
         Database db = new Database();
-        int result = db.startMeeting();
+        int result = db.startMeeting_old();
         System.out.println("Result: " + result);
         if (result == 0) {
             Date date = new Date();  

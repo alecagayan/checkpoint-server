@@ -12,7 +12,7 @@ import org.json.JSONObject;
  * Interface between API and database.
  */
 public class Database {
-    private static final String url = "jdbc:mysql://localhost:3306/checkpoint";
+    private static final String url = "jdbc:mysql://192.168.2.2:3306/checkpoint";
     private static final String username = "checkin";
     private static final String password = "Chkpntuser!23";
     private static Connection conn = null;
@@ -172,6 +172,31 @@ public class Database {
         return result;
     }
 
+    // return all attendees in JSON format
+    public String getAttendees(String meetingId) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT u.id, u.name, u.login, a.checkintime, a.checkouttime FROM attendees a, users u WHERE a.attendee_id = u.id AND a.meeting_id = ?");
+            stmt.setString(1, meetingId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") + 
+                            "\",\"name\":\"" + rs.getString("name") + 
+                            "\",\"login\":\"" + rs.getString("login") + 
+                            "\",\"checkintime\":\"" + emptyIfNull(rs.getTimestamp("checkintime")) + 
+                            "\",\"checkouttime\":\"" + emptyIfNull(rs.getTimestamp("checkouttime")) + 
+                            "\"},";
+            }
+            if (result.length()>0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
     // create meeting
     // 0 = success
     // 1 = error
@@ -255,7 +280,7 @@ public class Database {
         return result;
     }
 
-    public String getAttendees() {
+    public String getAttendees_old() {
         //get the students column from the meetings table
         String result = "";
         try {

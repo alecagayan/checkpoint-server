@@ -107,6 +107,13 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/attendees", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String attendees(@RequestParam(value = "meetingId") String meetingId) {
+        Database db = new Database();
+        String result = db.getAttendees(meetingId);
+        return result;
+    }
+
     @GetMapping(value = "/meetings", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String meetings() {
         Database db = new Database();
@@ -178,16 +185,6 @@ public class Controller {
         int result = db.checkMeeting();
         return result;
     }
-
-    @GetMapping("attendees")
-    public String attendees() {
-        System.out.println("Attendees Called");
-        Database db = new Database();
-        String result = db.getAttendees();
-        System.out.println("Result: " + result);
-        return result;
-    }
-
 
     @PostMapping(
     value = "/test", 

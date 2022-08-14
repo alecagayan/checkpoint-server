@@ -107,6 +107,13 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/reportbydate", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String reportByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate, @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+        Database db = new Database();
+        String result = db.getUsersBetweenDates(startDate, endDate);
+        return result;
+    }
+
     @GetMapping(value = "/attendees", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String attendees(@RequestParam(value = "meetingId") String meetingId) {
         Database db = new Database();
@@ -143,47 +150,6 @@ public class Controller {
         } else {
             return "Error";
         }
-    }
-
-    @GetMapping("start")
-    public String start() {
-        System.out.println("Start Called");
-        Database db = new Database();
-        int result = db.startMeeting_old();
-        System.out.println("Result: " + result);
-        if (result == 0) {
-            Date date = new Date();  
-            SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");  
-            return "Meeting started at " + formatter.format(date);
-        } else {
-            return "Error";
-        }    
-    }
-
-    @GetMapping("percentages")
-    public String percentages(@RequestParam int percent) {
-        System.out.println("Percentages Called");
-        Database db = new Database();
-        String result = db.getPercentages(percent);
-        System.out.println("Result: " + result);
-        return result;
-    }
-
-    @GetMapping("getstudents")
-    public String listStudents() {
-        System.out.println("List Students Called");
-        Database db = new Database();
-        String result = db.getStudents();
-        System.out.println("Result: " + result);
-        return result;
-    }
-
-    @GetMapping("checkmeeting")
-    public int checkMeeting() {
-        System.out.println("Check Meeting Called");
-        Database db = new Database();
-        int result = db.checkMeeting();
-        return result;
     }
 
     @PostMapping(

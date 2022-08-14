@@ -12,7 +12,7 @@ import org.json.JSONObject;
  * Interface between API and database.
  */
 public class Database {
-    private static final String url = "jdbc:mysql://192.168.2.2:3306/checkpoint";
+    private static final String url = "jdbc:mysql://checkpointdb:3306/checkpoint";
     private static final String username = "checkin";
     private static final String password = "Chkpntuser!23";
     private static Connection conn = null;
@@ -132,10 +132,28 @@ public class Database {
     public String getUsers() {
         String result = "";
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users");
+            //select all users from users table and select attendee count from attendees table and join
+            PreparedStatement stmt = conn.prepareStatement("SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id GROUP BY users.id");
             ResultSet rs = stmt.executeQuery();
+/*            
+            PreparedStatement meeting_count = conn.prepareStatement("SELECT COUNT(id) AS meeting_count FROM meetings");
+            ResultSet meeting_rs = meeting_count.executeQuery();
+
+            int countmeeting = 1;
+            while (meeting_rs.next()) {
+                countmeeting = meeting_rs.getInt("meeting_count"); 
+                System.out.println(countmeeting);
+            }
+            if (countmeeting == 0) {
+
+            }
+*/            
             while (rs.next()) {
-                result += "{\"id\":\"" + rs.getString("id") + "\",\"name\":\"" + rs.getString("name") + "\",\"email\":\"" + rs.getString("email") + "\",\"login\":\"" + rs.getString("login") + "\"},";
+                result += "{\"id\":\"" + rs.getString("id") + 
+                            "\",\"name\":\"" + rs.getString("name") + 
+                            "\",\"email\":\"" + rs.getString("email") + 
+                            "\",\"login\":\"" + rs.getString("login") + "\"},";
+                            //"\",\"attendee_count\":\"" + String.valueOf(rs.getInt("attendee_count")/(countmeeting+0.0)*100) + "%" + "\"},";
             }
             if (result.length()>0) {
                 result = result.substring(0, result.length() - 1);
@@ -146,6 +164,51 @@ public class Database {
         }
         return result;
     }
+
+    // return all users and meeting percentage between given dates in JSON format
+    public String getUsersBetweenDates(String startDate, String endDate) {
+        String result = "";
+        try {
+            System.out.println("start date: " + startDate);
+            System.out.println("end date: " + endDate);
+
+            //select all users from users table and select attendee count from attendees table and join
+            PreparedStatement stmt = conn.prepareStatement("SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id");
+            stmt.setString(1, startDate);
+            stmt.setString(2, endDate);
+            ResultSet rs = stmt.executeQuery();
+
+            PreparedStatement meeting_count = conn.prepareStatement("SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
+            meeting_count.setString(1, startDate);
+            meeting_count.setString(2, endDate);
+            ResultSet meeting_rs = meeting_count.executeQuery();
+
+            int countmeeting = 1;
+            while (meeting_rs.next()) {
+                countmeeting = meeting_rs.getInt("meeting_count"); 
+                System.out.println(countmeeting);
+            }
+
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") + 
+                            "\",\"name\":\"" + rs.getString("name") + 
+                            "\",\"email\":\"" + rs.getString("email") + 
+                            "\",\"login\":\"" + rs.getString("login") + 
+                            "\",\"attendee_count\":\"" + String.valueOf(rs.getInt("attendee_count")/(countmeeting+0.0)*100) + "%" + "\"},";
+            }
+            if (result.length()>0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    // return amount of checkins for all users in JSON format
+    // each checkin is a row in the attendees table
+    
 
 
     // return all meetings in JSON format
@@ -158,9 +221,7 @@ public class Database {
                 result += "{\"id\":\"" + rs.getInt("id") + 
                             "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) + 
                             "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) + 
-                            "\",\"location\":\"" + rs.getString("location") + 
-                            "\",\"attendees\":\"" + rs.getString("attendees") + 
-                            "\"},";
+                            "\",\"location\":\"" + rs.getString("location") + "\"},";
             }
             if (result.length()>0) {
                 result = result.substring(0, result.length() - 1);
@@ -197,6 +258,47 @@ public class Database {
         return result;
     }
 
+
+    // setparam
+    public void setParam(String key, String val) {
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT key FROM params WHERE key = ?");
+            stmt.setString(1, key);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                PreparedStatement stmt2 = conn.prepareStatement("UPDATE params SET value = ? WHERE key = ?");
+                stmt2.setString(1, val);
+                stmt2.setString(2, key);
+                stmt2.executeUpdate();
+            } else {
+                PreparedStatement stmt2 = conn.prepareStatement("INSERT INTO params (key, value) VALUES (?, ?)");
+                stmt2.setString(1, key);
+                stmt2.setString(2, val);
+                stmt2.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // getparam
+    public String getParam(String key) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT value FROM params WHERE key = ?");
+            stmt.setString(1, key);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = rs.getString("value");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+
+
     // create meeting
     // 0 = success
     // 1 = error
@@ -206,169 +308,6 @@ public class Database {
             PreparedStatement stmt = conn.prepareStatement("INSERT INTO meetings (opentime) VALUES (now())");
             stmt.executeUpdate();
             result = 0;
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return result;
-    }
-
-
-    // username and account in
-    // 0 = success
-    // 1 = error
-    public int checkIn_old(String student_id, String account) {
-        int result = 1;
-        int count = 0;
-        String mtngresult = "";
-        try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM logs WHERE student_id = ?");
-            //stmt.setString(1, account);
-            stmt.setString(1, student_id);
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-
-                //check if student_id is in meeting
-                PreparedStatement mtngstmt = conn.prepareStatement("SELECT students FROM meetings WHERE meeting = curdate()");
-                ResultSet mtrs = mtngstmt.executeQuery();
-                if (mtrs.next()) {
-                    mtngresult = rs.getString("students");
-                }
-
-                // check if student_id is in result
-                if (!mtngresult.contains(student_id)) {
-
-
-                //add one to the count and append current time to the database
-                count = rs.getInt("count") + 1;
-                PreparedStatement stmt2 = conn.prepareStatement("UPDATE logs SET count = ? WHERE student_id = ?");
-                //stmt2.setString(1, account);
-                stmt2.setInt(1, count);
-                stmt2.setString(2, student_id);
-                stmt2.executeUpdate();
- 
-                //append the current date and time to meetings column
-                PreparedStatement stmt3 = conn.prepareStatement("UPDATE logs SET meetings = CONCAT(meetings, ',', CURRENT_TIMESTAMP) WHERE student_id = ?");
-                //stmt3.setString(1, account);
-                stmt3.setString(1, student_id);
-                stmt3.executeUpdate();
-
-                //append the student_id to the students column in the meetings table
-                PreparedStatement stmt4 = conn.prepareStatement("UPDATE meetings SET students = CONCAT(students, ',', ?) WHERE meeting = curdate()");
-                stmt4.setString(1, student_id);
-                stmt4.executeUpdate();
-                result = 0;
-                }
-
-            } else {
-                //create a new row in the database
-                PreparedStatement stmt5 = conn.prepareStatement("INSERT INTO logs (student_id, count, meetings) VALUES (?, 1, CURRENT_TIMESTAMP)");
-                //stmt4.setString(1, account);
-                stmt5.setString(1, student_id);
-                stmt5.executeUpdate();
-
-                //append the student_id to the students column in the meetings table
-                PreparedStatement stmt6 = conn.prepareStatement("UPDATE meetings SET students = CONCAT(students, ',', ?) WHERE meeting = curdate()");
-                stmt6.setString(1, student_id);
-                stmt6.executeUpdate();
-                result = 0;
-
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return result;
-    }
-
-    public String getAttendees_old() {
-        //get the students column from the meetings table
-        String result = "";
-        try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT students FROM meetings WHERE meeting = curdate()");
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                result = rs.getString("students");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return result;
-    }
-
-    public String getStudents() {
-        //get every student_id from the logs table
-        String result = "";
-        try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT student_id FROM logs");
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                result += rs.getString("student_id") + ",";
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return result;
-    }
-
-    public String getPercentages(int percent) {
-        //get the amount of meetings from the meetings table
-        // each row is a meeting
-        int meetings = 0;
-        try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT COUNT(*) FROM meetings");
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                meetings = rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-    }
-
-    double meetingThreshold = meetings * (percent / 100.0);
-
-    //go through every student in logs table and check if their meeting count is above the meeting threshold
-    //if so, add them to the result string
-        String result = "";
-        try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM logs");
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                if (rs.getInt("count") > meetingThreshold) {
-                    result += rs.getString("student_id") + ",";
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return result;
-    }
-
-
-
-    public int startMeeting_old() {
-        //create new row in meetings table with current date 
-        int result = 1;
-        try {
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO meetings (meeting, students) VALUES (curdate(), '0000000')");
-            stmt.executeUpdate();
-            result = 0;
-        } catch (SQLException e) {
-            e.printStackTrace();
-
-        }
-        return result;
-    }
-
-    public int checkMeeting() {
-        //check if there is a meeting today
-        int result = 1;
-        try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM meetings WHERE meeting = curdate()");
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                result = 0;
-            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -6,7 +6,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.ResultSet;
 
-import org.json.JSONObject;
 
 /***
  * Interface between API and database.
@@ -51,7 +50,7 @@ public class Database {
     public int register(String id, String name, String email, String registrationCode) {
         int result = 1;
         System.out.println("registration code: " + registrationCode);
-        if(registrationCode.equals("FRC116")) {
+        if (registrationCode.equals("FRC116")) {
             try {
                 // check if user exists
                 PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
@@ -81,7 +80,7 @@ public class Database {
     public int checkIn(String username, String meetingId) {
         int result = 1;
         try {
-            //get attendee_id from users table
+            // get attendee_id from users table
             PreparedStatement stmt = conn.prepareStatement("SELECT id FROM users WHERE login = ?");
             stmt.setString(1, username);
             ResultSet rs = stmt.executeQuery();
@@ -132,30 +131,35 @@ public class Database {
     public String getUsers() {
         String result = "";
         try {
-            //select all users from users table and select attendee count from attendees table and join
-            PreparedStatement stmt = conn.prepareStatement("SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id GROUP BY users.id");
+            // select all users from users table and select attendee count from attendees
+            // table and join
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id GROUP BY users.id");
             ResultSet rs = stmt.executeQuery();
-/*            
-            PreparedStatement meeting_count = conn.prepareStatement("SELECT COUNT(id) AS meeting_count FROM meetings");
-            ResultSet meeting_rs = meeting_count.executeQuery();
-
-            int countmeeting = 1;
-            while (meeting_rs.next()) {
-                countmeeting = meeting_rs.getInt("meeting_count"); 
-                System.out.println(countmeeting);
-            }
-            if (countmeeting == 0) {
-
-            }
-*/            
+            /*
+             * PreparedStatement meeting_count =
+             * conn.prepareStatement("SELECT COUNT(id) AS meeting_count FROM meetings");
+             * ResultSet meeting_rs = meeting_count.executeQuery();
+             * 
+             * int countmeeting = 1;
+             * while (meeting_rs.next()) {
+             * countmeeting = meeting_rs.getInt("meeting_count");
+             * System.out.println(countmeeting);
+             * }
+             * if (countmeeting == 0) {
+             * 
+             * }
+             */
             while (rs.next()) {
-                result += "{\"id\":\"" + rs.getString("id") + 
-                            "\",\"name\":\"" + rs.getString("name") + 
-                            "\",\"email\":\"" + rs.getString("email") + 
-                            "\",\"login\":\"" + rs.getString("login") + "\"},";
-                            //"\",\"attendee_count\":\"" + String.valueOf(rs.getInt("attendee_count")/(countmeeting+0.0)*100) + "%" + "\"},";
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"email\":\"" + rs.getString("email") +
+                        "\",\"login\":\"" + rs.getString("login") + "\"},";
+                // "\",\"attendee_count\":\"" +
+                // String.valueOf(rs.getInt("attendee_count")/(countmeeting+0.0)*100) + "%" +
+                // "\"},";
             }
-            if (result.length()>0) {
+            if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
             }
             result = "[" + result + "]";
@@ -172,31 +176,35 @@ public class Database {
             System.out.println("start date: " + startDate);
             System.out.println("end date: " + endDate);
 
-            //select all users from users table and select attendee count from attendees table and join
-            PreparedStatement stmt = conn.prepareStatement("SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id");
+            // select all users from users table and select attendee count from attendees
+            // table and join
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
             ResultSet rs = stmt.executeQuery();
 
-            PreparedStatement meeting_count = conn.prepareStatement("SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
+            PreparedStatement meeting_count = conn.prepareStatement(
+                    "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
             meeting_count.setString(1, startDate);
             meeting_count.setString(2, endDate);
             ResultSet meeting_rs = meeting_count.executeQuery();
 
             int countmeeting = 1;
             while (meeting_rs.next()) {
-                countmeeting = meeting_rs.getInt("meeting_count"); 
+                countmeeting = meeting_rs.getInt("meeting_count");
                 System.out.println(countmeeting);
             }
 
             while (rs.next()) {
-                result += "{\"id\":\"" + rs.getString("id") + 
-                            "\",\"name\":\"" + rs.getString("name") + 
-                            "\",\"email\":\"" + rs.getString("email") + 
-                            "\",\"login\":\"" + rs.getString("login") + 
-                            "\",\"attendee_count\":\"" + String.valueOf(rs.getInt("attendee_count")/(countmeeting+0.0)*100) + "%" + "\"},";
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"email\":\"" + rs.getString("email") +
+                        "\",\"login\":\"" + rs.getString("login") +
+                        "\",\"attendee_count\":\""
+                        + String.valueOf(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) + "%" + "\"},";
             }
-            if (result.length()>0) {
+            if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
             }
             result = "[" + result + "]";
@@ -208,22 +216,21 @@ public class Database {
 
     // return amount of checkins for all users in JSON format
     // each checkin is a row in the attendees table
-    
-
 
     // return all meetings in JSON format
     public String getMeetings() {
         String result = "";
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT m.id, m.opentime, m.closetime, m.location, COUNT(a.id) as attendees FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime ASC");
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT m.id, m.opentime, m.closetime, m.location, COUNT(a.id) as attendees FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime ASC");
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                result += "{\"id\":\"" + rs.getInt("id") + 
-                            "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) + 
-                            "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) + 
-                            "\",\"location\":\"" + rs.getString("location") + "\"},";
+                result += "{\"id\":\"" + rs.getInt("id") +
+                        "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) +
+                        "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) +
+                        "\",\"location\":\"" + rs.getString("location") + "\"},";
             }
-            if (result.length()>0) {
+            if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
             }
             result = "[" + result + "]";
@@ -237,18 +244,19 @@ public class Database {
     public String getAttendees(String meetingId) {
         String result = "";
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT u.id, u.name, u.login, a.checkintime, a.checkouttime FROM attendees a, users u WHERE a.attendee_id = u.id AND a.meeting_id = ?");
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT u.id, u.name, u.login, a.checkintime, a.checkouttime FROM attendees a, users u WHERE a.attendee_id = u.id AND a.meeting_id = ?");
             stmt.setString(1, meetingId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                result += "{\"id\":\"" + rs.getString("id") + 
-                            "\",\"name\":\"" + rs.getString("name") + 
-                            "\",\"login\":\"" + rs.getString("login") + 
-                            "\",\"checkintime\":\"" + emptyIfNull(rs.getTimestamp("checkintime")) + 
-                            "\",\"checkouttime\":\"" + emptyIfNull(rs.getTimestamp("checkouttime")) + 
-                            "\"},";
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"login\":\"" + rs.getString("login") +
+                        "\",\"checkintime\":\"" + emptyIfNull(rs.getTimestamp("checkintime")) +
+                        "\",\"checkouttime\":\"" + emptyIfNull(rs.getTimestamp("checkouttime")) +
+                        "\"},";
             }
-            if (result.length()>0) {
+            if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
             }
             result = "[" + result + "]";
@@ -258,20 +266,19 @@ public class Database {
         return result;
     }
 
-
     // setparam
     public void setParam(String key, String val) {
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT key FROM params WHERE key = ?");
+            PreparedStatement stmt = conn.prepareStatement("SELECT name FROM params WHERE name = ?");
             stmt.setString(1, key);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                PreparedStatement stmt2 = conn.prepareStatement("UPDATE params SET value = ? WHERE key = ?");
+                PreparedStatement stmt2 = conn.prepareStatement("UPDATE params SET value = ? WHERE name = ?");
                 stmt2.setString(1, val);
                 stmt2.setString(2, key);
                 stmt2.executeUpdate();
             } else {
-                PreparedStatement stmt2 = conn.prepareStatement("INSERT INTO params (key, value) VALUES (?, ?)");
+                PreparedStatement stmt2 = conn.prepareStatement("INSERT INTO params (name, value) VALUES (?, ?)");
                 stmt2.setString(1, key);
                 stmt2.setString(2, val);
                 stmt2.executeUpdate();
@@ -285,7 +292,7 @@ public class Database {
     public String getParam(String key) {
         String result = "";
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT value FROM params WHERE key = ?");
+            PreparedStatement stmt = conn.prepareStatement("SELECT value FROM params WHERE name = ?");
             stmt.setString(1, key);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
@@ -297,7 +304,40 @@ public class Database {
         return result;
     }
 
+    // get secret key
+    public String getSecretKey() {
+        String result = null;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT value FROM params WHERE name = 'secret_key'");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = rs.getString("value");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
+        return result;
+    }
+
+    public void setSecretKey(String secretKey) {
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT name FROM params WHERE name = 'secret_key'");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                PreparedStatement stmt2 = conn.prepareStatement("UPDATE params SET value = ? WHERE name = 'secret_key'");
+                stmt2.setString(1, secretKey);
+                stmt2.executeUpdate();
+            } else {
+                PreparedStatement stmt2 = conn
+                        .prepareStatement("INSERT INTO params (name, value) VALUES ('secret_key', ?)");
+                stmt2.setString(1, secretKey);
+                stmt2.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     // create meeting
     // 0 = success

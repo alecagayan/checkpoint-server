@@ -12,13 +12,8 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 
-
 import java.util.Collections;
 import java.util.Map;
-
-import javax.annotation.processing.Generated;
-
-import java.text.SimpleDateFormat;  
 import java.util.Date;
 
 import org.json.*;
@@ -28,11 +23,12 @@ import org.json.*;
 @CrossOrigin(origins = "*")
 public class Controller {
 
+    public static final int TOKEN_EXPIRY_SECONDS = 60 * 60 * 2;
+
     @GetMapping("/hello")
     public String hello() {
         return "Hello World!";
     }
-
 
     @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String login(@RequestBody String json) {
@@ -42,9 +38,17 @@ public class Controller {
         String result = "";
         Database db = new Database();
         if (db.logIn(login, password) == 0) {
-            result = "{\"token\":\"" + login + "\"}";
+            String tokenValue = "";
+            try {
+                tokenValue = generateTokenForUser(login);
+            } catch (Exception e) {
+                e.printStackTrace();
+                result = "{\"error\":\"cannot generate token\"}";
+                return result;
+            }
+            result = "{\"token\":\"" + tokenValue + "\"}";
         } else {
-            result = "{\"error\":\"badness occurred\"}";
+            result = "{\"error\":\"invalid credentials\"}";
         }
         return result;
     }
@@ -73,7 +77,15 @@ public class Controller {
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
         String username = jsonObject.getString("username");
+        String token = jsonObject.getString("token");
         String result = "";
+
+        // check if token is valid
+        if (!validateToken(token)) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
         Database db = new Database();
         if (db.addUser(name, email, username) == 0) {
             result = "{\"user\":\"" + username + "\"}";
@@ -86,12 +98,20 @@ public class Controller {
     @PostMapping(value = "/checkin", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String checkin(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
+        System.out.println("jsonObject: " + jsonObject); 
         String username = jsonObject.getString("login");
-        String token = jsonObject.getString("storedToken");
+        String token = jsonObject.getString("token");
         String meetingId = jsonObject.getString("meetingId");
         String result = "";
-        Database db = new Database();
+
+        // check if token is valid
+        if (!validateToken(token)) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
         System.out.println("checking in user " + username + " with token " + token + " for meeting " + meetingId);
+        Database db = new Database();
         if (db.checkIn(username, meetingId) == 0) {
             result = "{\"result\":\"" + "1" + "\"}";
         } else {
@@ -108,7 +128,8 @@ public class Controller {
     }
 
     @GetMapping(value = "/reportbydate", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String reportByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate, @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+    public @ResponseBody String reportByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
         Database db = new Database();
         String result = db.getUsersBetweenDates(startDate, endDate);
         return result;
@@ -131,7 +152,18 @@ public class Controller {
     @PostMapping(value = "/startmeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String startmeeting(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
+        // System.out.println("jsonObject: " + jsonObject); 
+        // String token = jsonObject.getString("token");
+        // String meetingId = jsonObject.getString("meetingId");
         String result = "";
+
+
+        // // check if token is valid
+        // if (!validateToken(token)) {
+        //     result = "{\"error\":\"invalid token\"}";
+        //     return result;
+        // }
+
         Database db = new Database();
         if (db.createMeeting() == 0) {
             result = "{\"meeting\":\"" + "1" + "\"}";
@@ -152,10 +184,7 @@ public class Controller {
         }
     }
 
-    @PostMapping(
-    value = "/test", 
-    consumes = MediaType.APPLICATION_JSON_VALUE, 
-    produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/test", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> example() {
         return Collections.singletonMap("key", "value");
     }
@@ -164,6 +193,46 @@ public class Controller {
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
     public String handleHttpMediaTypeNotAcceptableException() {
         return "acceptable MIME type:" + MediaType.APPLICATION_JSON_VALUE;
+    }
+
+    private String generateTokenForUser(String username) throws Exception {
+        // check database for secret key
+        Database db = new Database();
+        String secretKey = db.getSecretKey();
+        if (secretKey == null) {
+            secretKey = AESUtil.generateKeyAndIv(256);
+            db.setSecretKey(secretKey);
+        }
+
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + (1000 * TOKEN_EXPIRY_SECONDS));
+
+        // generate token
+        Token token = new Token(username, now, expiry, "admin");
+        String encryptedToken = TokenUtil.encrypt(token, secretKey);
+        return encryptedToken;
+
+    }
+
+    private boolean validateToken(String token) {
+        // check database for secret key
+        Database db = new Database();
+        String secretKey = db.getSecretKey();
+        if (secretKey == null) {
+            return false;
+        }
+        try {
+            Token decryptedToken = TokenUtil.decrypt(token, secretKey);
+            if (decryptedToken.isExpired()) {
+                System.out.println("Token expired");
+                return false;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        return true;
     }
 
 }

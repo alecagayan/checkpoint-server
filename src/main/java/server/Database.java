@@ -179,7 +179,7 @@ public class Database {
             // select all users from users table and select attendee count from attendees
             // table and join
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id order by users.name asc");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
             ResultSet rs = stmt.executeQuery();
@@ -202,7 +202,76 @@ public class Database {
                         "\",\"email\":\"" + rs.getString("email") +
                         "\",\"login\":\"" + rs.getString("login") +
                         "\",\"attendee_count\":\""
-                        + String.valueOf(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) + "%" + "\"},";
+                        + String.valueOf(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) + "\"},";
+            }
+            if (result.length() > 0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+      // return all users and meeting percentage between given dates in JSON format
+      public String getUsersBetweenDates(String startDate, String endDate, int limit) {
+        String result = "";
+        try {
+            System.out.println("start date: " + startDate);
+            System.out.println("end date: " + endDate);
+
+            // select all users from users table and select attendee count from attendees
+            // table and join
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id order by attendee_count desc limit ?");
+            stmt.setString(1, startDate);
+            stmt.setString(2, endDate);
+            stmt.setInt(3, limit);
+            ResultSet rs = stmt.executeQuery();
+
+            PreparedStatement meeting_count = conn.prepareStatement(
+                    "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
+            meeting_count.setString(1, startDate);
+            meeting_count.setString(2, endDate);
+            ResultSet meeting_rs = meeting_count.executeQuery();
+
+            int countmeeting = 1;
+            while (meeting_rs.next()) {
+                countmeeting = meeting_rs.getInt("meeting_count");
+                System.out.println(countmeeting);
+            }
+
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"email\":\"" + rs.getString("email") +
+                        "\",\"login\":\"" + rs.getString("login") +
+                        "\",\"attendee_count\":\""
+                        + String.valueOf(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) + "\"},";
+            }
+            if (result.length() > 0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+  
+    public String getRecentMeetings(int limit) {
+        String result = "";
+
+        //get attendee count for last few meetings
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT m.opentime as meeting_time, COUNT(a.attendee_id) as attendee_count FROM attendees a, meetings m WHERE m.id = a.meeting_id group by m.opentime order by m.opentime asc limit ?");
+            stmt.setInt(1, limit);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result += "{\"attendee_count\":\"" + rs.getInt("attendee_count") +
+                "\",\"meeting_time\":\"" + rs.getString("meeting_time") + "\"},";
             }
             if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);

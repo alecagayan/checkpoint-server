@@ -120,6 +120,7 @@ public class Controller {
         return result;
     }
 
+
     @GetMapping(value = "/users", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String users() {
         Database db = new Database();
@@ -132,6 +133,30 @@ public class Controller {
             @RequestParam(value = "endDate", defaultValue = "") String endDate) {
         Database db = new Database();
         String result = db.getUsersBetweenDates(startDate, endDate);
+        return result;
+    }
+
+    @GetMapping(value = "/recentmeetings", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String recentMeetings(@RequestParam(value = "limit") String limit) {
+        Database db = new Database();
+        int size = 10;
+        if (limit != null) {
+            size = Integer.parseInt(limit);
+        }
+        String result = db.getRecentMeetings(size);
+        return result;
+    }
+
+    @GetMapping(value = "/topattendees", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String topAttendees(@RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate, 
+            @RequestParam(value = "limit") String limit) {
+        Database db = new Database();
+        int size = 5;
+        if (limit != null) {
+            size = Integer.parseInt(limit);
+        }
+        String result = db.getUsersBetweenDates(startDate, endDate, size);
         return result;
     }
 

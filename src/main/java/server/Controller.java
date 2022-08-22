@@ -81,7 +81,8 @@ public class Controller {
         String result = "";
 
         // check if token is valid
-        if (!validateToken(token)) {
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -105,13 +106,20 @@ public class Controller {
         String result = "";
 
         // check if token is valid
-        if (!validateToken(token)) {
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
 
         System.out.println("checking in user " + username + " with token " + token + " for meeting " + meetingId);
         Database db = new Database();
+
+        // logic to check if meeting is closed
+        if (db.isMeetingClosed(meetingId)) {
+            result = "{\"error\":\"meeting is closed\"}";
+            return result;
+        }
         if (db.checkIn(username, meetingId) == 0) {
             result = "{\"result\":\"" + "1" + "\"}";
         } else {
@@ -177,21 +185,45 @@ public class Controller {
     @PostMapping(value = "/startmeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String startmeeting(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
-        // System.out.println("jsonObject: " + jsonObject); 
-        // String token = jsonObject.getString("token");
-        // String meetingId = jsonObject.getString("meetingId");
+        System.out.println("jsonObject: " + jsonObject); 
+        String token = jsonObject.getString("token");
         String result = "";
 
-
-        // // check if token is valid
-        // if (!validateToken(token)) {
-        //     result = "{\"error\":\"invalid token\"}";
-        //     return result;
-        // }
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
 
         Database db = new Database();
-        if (db.createMeeting() == 0) {
-            result = "{\"meeting\":\"" + "1" + "\"}";
+        int meetingId = db.createMeeting(userToken.getUsername());
+        if (meetingId != 0) {
+            result = "{\"meeting\":\"" + meetingId + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/closemeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String closemeeting(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        System.out.println("jsonObject: " + jsonObject); 
+        String token = jsonObject.getString("token");
+        String meetingId = jsonObject.getString("meetingId");
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        Database db = new Database();
+        if (db.closeMeeting(meetingId) == 0) {
+            result = "{\"meeting\":\"" + meetingId + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
         }
@@ -239,25 +271,22 @@ public class Controller {
 
     }
 
-    private boolean validateToken(String token) {
+    private Token getToken(String token) {
         // check database for secret key
         Database db = new Database();
         String secretKey = db.getSecretKey();
         if (secretKey == null) {
-            return false;
+            System.out.println("No secret key found in database");
+            return null;
         }
+        Token decryptedToken = null;
         try {
-            Token decryptedToken = TokenUtil.decrypt(token, secretKey);
-            if (decryptedToken.isExpired()) {
-                System.out.println("Token expired");
-                return false;
-            }
+            decryptedToken = TokenUtil.decrypt(token, secretKey);
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
         }
 
-        return true;
+        return decryptedToken;
     }
 
 }

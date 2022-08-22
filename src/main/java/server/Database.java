@@ -5,7 +5,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.ResultSet;
-
+import java.sql.Statement;
 
 /***
  * Interface between API and database.
@@ -214,8 +214,8 @@ public class Database {
         return result;
     }
 
-      // return all users and meeting percentage between given dates in JSON format
-      public String getUsersBetweenDates(String startDate, String endDate, int limit) {
+    // return all users and meeting percentage between given dates in JSON format
+    public String getUsersBetweenDates(String startDate, String endDate, int limit) {
         String result = "";
         try {
             System.out.println("start date: " + startDate);
@@ -259,11 +259,11 @@ public class Database {
         }
         return result;
     }
-  
+
     public String getRecentMeetings(int limit) {
         String result = "";
 
-        //get attendee count for last few meetings
+        // get attendee count for last few meetings
         try {
             PreparedStatement stmt = conn.prepareStatement(
                     "SELECT m.opentime as meeting_time, COUNT(a.attendee_id) as attendee_count FROM attendees a, meetings m WHERE m.id = a.meeting_id group by m.opentime order by m.opentime asc limit ?");
@@ -271,7 +271,7 @@ public class Database {
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 result += "{\"attendee_count\":\"" + rs.getInt("attendee_count") +
-                "\",\"meeting_time\":\"" + rs.getString("meeting_time") + "\"},";
+                        "\",\"meeting_time\":\"" + rs.getString("meeting_time") + "\"},";
             }
             if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
@@ -291,12 +291,14 @@ public class Database {
         String result = "";
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.id, m.opentime, m.closetime, m.location, COUNT(a.id) as attendees FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime ASC");
+                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime ASC ");
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getInt("id") +
                         "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) +
+                        "\",\"openedby\":\"" + emptyIfNull(rs.getString("openedby")) +
                         "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) +
+                        "\",\"attendee_count\":\"" + rs.getInt("attendee_count") +
                         "\",\"location\":\"" + rs.getString("location") + "\"},";
             }
             if (result.length() > 0) {
@@ -394,7 +396,8 @@ public class Database {
             PreparedStatement stmt = conn.prepareStatement("SELECT name FROM params WHERE name = 'secret_key'");
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                PreparedStatement stmt2 = conn.prepareStatement("UPDATE params SET value = ? WHERE name = 'secret_key'");
+                PreparedStatement stmt2 = conn
+                        .prepareStatement("UPDATE params SET value = ? WHERE name = 'secret_key'");
                 stmt2.setString(1, secretKey);
                 stmt2.executeUpdate();
             } else {
@@ -408,13 +411,49 @@ public class Database {
         }
     }
 
-    // create meeting
+    // create meeting, returns the id of the new meeting or 0 if error
+    public int createMeeting(String username) {
+        int result = 0;
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO meetings (opentime, openedby) VALUES (now(), (select id from users where login = ?))", Statement.RETURN_GENERATED_KEYS);
+            stmt.setString(1, username);
+            stmt.executeUpdate();
+            ResultSet rs = stmt.getGeneratedKeys(); 
+            if (rs.next()) {
+                result = rs.getInt(1);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    // check if meeting is closed
+    public boolean isMeetingClosed(String meetingId) {
+        boolean result = false;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT closetime FROM meetings WHERE id = ?");
+            stmt.setString(1, meetingId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = rs.getTimestamp("closetime") != null;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    // close meeting
     // 0 = success
     // 1 = error
-    public int createMeeting() {
+    public int closeMeeting(String meetingId) {
         int result = 1;
         try {
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO meetings (opentime) VALUES (now())");
+            PreparedStatement stmt = conn.prepareStatement("UPDATE meetings SET closetime = now() WHERE id = ?");
+            stmt.setString(1, meetingId);
             stmt.executeUpdate();
             result = 0;
         } catch (SQLException e) {

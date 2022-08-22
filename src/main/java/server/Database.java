@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.text.DecimalFormat;
 
 /***
  * Interface between API and database.
@@ -173,9 +174,6 @@ public class Database {
     public String getUsersBetweenDates(String startDate, String endDate) {
         String result = "";
         try {
-            System.out.println("start date: " + startDate);
-            System.out.println("end date: " + endDate);
-
             // select all users from users table and select attendee count from attendees
             // table and join
             PreparedStatement stmt = conn.prepareStatement(
@@ -193,8 +191,10 @@ public class Database {
             int countmeeting = 1;
             while (meeting_rs.next()) {
                 countmeeting = meeting_rs.getInt("meeting_count");
-                System.out.println(countmeeting);
             }
+
+            DecimalFormat df = new DecimalFormat();
+            df.setMaximumFractionDigits(2);
 
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getString("id") +
@@ -202,7 +202,7 @@ public class Database {
                         "\",\"email\":\"" + rs.getString("email") +
                         "\",\"login\":\"" + rs.getString("login") +
                         "\",\"attendee_count\":\""
-                        + String.valueOf(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) + "\"},";
+                        + df.format(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) + "\"},";
             }
             if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
@@ -218,9 +218,6 @@ public class Database {
     public String getUsersBetweenDates(String startDate, String endDate, int limit) {
         String result = "";
         try {
-            System.out.println("start date: " + startDate);
-            System.out.println("end date: " + endDate);
-
             // select all users from users table and select attendee count from attendees
             // table and join
             PreparedStatement stmt = conn.prepareStatement(
@@ -239,7 +236,6 @@ public class Database {
             int countmeeting = 1;
             while (meeting_rs.next()) {
                 countmeeting = meeting_rs.getInt("meeting_count");
-                System.out.println(countmeeting);
             }
 
             while (rs.next()) {

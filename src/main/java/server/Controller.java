@@ -128,6 +128,30 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "/checkout", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String checkout(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String username = jsonObject.getString("login");
+        String token = jsonObject.getString("token");
+        String meetingId = jsonObject.getString("meetingId");
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+        System.out.println("checking out user " + username + " with token " + token + " for meeting " + meetingId);
+        Database db = new Database();
+        if (db.checkOut(username, meetingId) == 0) {
+            result = "{\"result\":\"" + "1" + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
 
     @GetMapping(value = "/users", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String users() {

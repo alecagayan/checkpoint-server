@@ -6,7 +6,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 
 /***
  * Interface between API and database.
@@ -16,6 +18,8 @@ public class Database {
     private static final String username = "checkin";
     private static final String password = "Chkpntuser!23";
     private static Connection conn = null;
+
+    private static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     public Database() {
         try {
@@ -32,7 +36,7 @@ public class Database {
     public int logIn(String login, String password) {
         int result = 1;
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND password = ?");
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND password = ? AND role = 1 AND status = 1");
             stmt.setString(1, login);
             stmt.setString(2, password);
             ResultSet rs = stmt.executeQuery();
@@ -125,7 +129,7 @@ public class Database {
     // name, email, username in
     // 0 = success
     // 1 = error
-    public int addUser(String name, String email, String username) {
+    public int addUser(String name, String email, String username, int role, int status, String password) {
         int result = 1;
         if (name == null || name.trim().length() == 0) {
             return result;
@@ -137,10 +141,31 @@ public class Database {
             return result;
         }
         try {
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (name, email, login) VALUES (?, ?, ?)");
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (name, email, login, role, status, password) VALUES (?, ?, ?, ?, ?, ?)");
             stmt.setString(1, name);
             stmt.setString(2, email);
             stmt.setString(3, username);
+            stmt.setInt(4, role);
+            stmt.setInt(5, status);
+            stmt.setString(6, password);
+            stmt.executeUpdate();
+            result = 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public int updateUser(int id, String login, String name, String email, int role, int status) {
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("UPDATE users SET login = ?, name = ?, email = ?, role = ?, status = ? WHERE id = ?");
+            stmt.setString(1, login);
+            stmt.setString(2, name);
+            stmt.setString(3, email);
+            stmt.setInt(4, role);
+            stmt.setInt(5, status);
+            stmt.setInt(6, id);
             stmt.executeUpdate();
             result = 0;
         } catch (SQLException e) {
@@ -167,6 +192,54 @@ public class Database {
                 // "\",\"attendee_count\":\"" +
                 // String.valueOf(rs.getInt("attendee_count")/(countmeeting+0.0)*100) + "%" +
                 // "\"},";
+            }
+            if (result.length() > 0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public String getUser(String userId) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT users.id, users.name, users.email, users.login, users.role, users.status FROM users WHERE users.id = ?");
+            stmt.setString(1, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"email\":\"" + rs.getString("email") +
+                        "\",\"login\":\"" + rs.getString("login") + 
+                        "\",\"role\":\"" + rs.getInt("role") + 
+                        "\",\"status\":\"" + rs.getInt("status") + "\"}";
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public String getAttendance(String userId) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT meetings.id, meetings.opentime, meetings.closetime, attendees.checkintime, attendees.checkouttime FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ?");
+            stmt.setString(1, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"opentime\":\"" + rs.getString("opentime") +
+                        "\",\"closetime\":\"" + rs.getString("closetime") +
+                        "\",\"checkintime\":\"" + rs.getString("checkintime") +
+                        "\",\"checkouttime\":\"" + rs.getString("checkouttime") + "\"},";
             }
             if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
@@ -297,7 +370,7 @@ public class Database {
         String result = "";
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime ASC ");
+                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime DESC ");
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getInt("id") +
@@ -337,6 +410,45 @@ public class Database {
                 result = result.substring(0, result.length() - 1);
             }
             result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public String getMeeting(String meetingId) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location FROM meetings m WHERE m.id = ?");
+            stmt.setString(1, meetingId);
+            ResultSet rs = stmt.executeQuery();
+            result = "{";
+            if (rs.next()) {
+                result += "\"id\":\"" + rs.getInt("id") +
+                        "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) +
+                        "\",\"openedby\":\"" + emptyIfNull(rs.getString("openedby")) +
+                        "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) +
+                        "\",\"location\":\"" + rs.getString("location") + "\"";
+            }
+            // get id of the next meeting
+            stmt = conn.prepareStatement(
+                    "SELECT id FROM meetings WHERE opentime > (SELECT opentime FROM meetings WHERE id = ?) ORDER BY opentime ASC LIMIT 1");
+            stmt.setString(1, meetingId);
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                result += ",\"next_meeting_id\":\"" + rs.getInt("id") + "\"";
+            }
+            // get id of the previous meeting
+            stmt = conn.prepareStatement(
+                    "SELECT id FROM meetings WHERE opentime < (SELECT opentime FROM meetings WHERE id = ?) ORDER BY opentime DESC LIMIT 1");
+            stmt.setString(1, meetingId);
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                result += ",\"prev_meeting_id\":\"" + rs.getInt("id") + "\"";
+            }
+            result += "}";
+
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -475,12 +587,21 @@ public class Database {
         return result;
     }
 
-    private String emptyIfNull(Object o) {
-        if (o == null) {
+    private String emptyIfNull(String s) {
+        if (s == null) {
             return "";
         } else {
-            return o.toString();
+            return s.toString();
         }
     }
+
+    private String emptyIfNull(Timestamp ts) {
+        if (ts == null) {
+            return "";
+        } else {
+            return dateFormat.format(ts);
+        }
+    }
+
 
 }

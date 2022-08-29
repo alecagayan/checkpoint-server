@@ -77,6 +77,9 @@ public class Controller {
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
         String username = jsonObject.getString("username");
+        String password = jsonObject.getString("password");
+        int role = jsonObject.getInt("role");
+
         String token = jsonObject.getString("token");
         String result = "";
 
@@ -87,9 +90,42 @@ public class Controller {
             return result;
         }
 
+        if (role == 1 && (password == null || password.isEmpty())) {
+            result = "{\"error\":\"password is required\"}";
+            return result;
+        }
+
         Database db = new Database();
-        if (db.addUser(name, email, username) == 0) {
+        if (db.addUser(name, email, username, role, 1, password) == 0) {
             result = "{\"user\":\"" + username + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/updateuser", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String updateuser(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        System.out.println(jsonObject.toString());
+        String name = jsonObject.getString("name");
+        int id = jsonObject.getInt("id");
+        String login = jsonObject.getString("login");
+        String email = jsonObject.getString("email");
+        int role = jsonObject.getInt("role");
+        int status = jsonObject.getInt("status");
+        String token = jsonObject.getString("token");
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+        Database db = new Database();
+        if (db.updateUser(id, login, name, email, role, status) == 0) {
+            result = "{\"user\":\"" + id + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
         }
@@ -160,6 +196,20 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/user", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String user(@RequestParam String userId) {
+        Database db = new Database();
+        String result = db.getUser(userId);
+        return result;
+    }
+
+    @GetMapping(value = "/attendance", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String attendance(@RequestParam String userId) {
+        Database db = new Database();
+        String result = db.getAttendance(userId);
+        return result;
+    }
+
     @GetMapping(value = "/reportbydate", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String reportByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
             @RequestParam(value = "endDate", defaultValue = "") String endDate) {
@@ -199,6 +249,14 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/meeting", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String meeting(@RequestParam(value = "meetingId") String meetingId) {
+        Database db = new Database();
+        String result = db.getMeeting(meetingId);
+        System.out.println("result: " + result);
+        return result;
+    }
+
     @GetMapping(value = "/meetings", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String meetings() {
         Database db = new Database();
@@ -229,6 +287,7 @@ public class Controller {
         }
         return result;
     }
+    
 
     @PostMapping(value = "/closemeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String closemeeting(@RequestBody String json) {

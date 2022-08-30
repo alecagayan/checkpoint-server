@@ -218,6 +218,14 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/rawdatabydate", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String rawDataByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+        Database db = new Database();
+        String result = db.getRawDataBetweenDates(startDate, endDate);
+        return result;
+    }
+
     @GetMapping(value = "/recentmeetings", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String recentMeetings(@RequestParam(value = "limit") String limit) {
         Database db = new Database();

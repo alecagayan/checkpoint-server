@@ -339,6 +339,36 @@ public class Database {
         return result;
     }
 
+    // return all raw data from attenees table in JSON format between given dates
+    // append meeting checkin and checkout times to result
+    // append user name and login to result
+    public String getRawDataBetweenDates(String startDate, String endDate) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT attendees.id, attendees.meeting_id, attendees.attendee_id, attendees.checkintime, attendees.checkouttime, users.name, users.login FROM attendees JOIN users ON attendees.attendee_id = users.id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?)");
+            stmt.setString(1, startDate);
+            stmt.setString(2, endDate);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"meeting_id\":\"" + rs.getString("meeting_id") +
+                        "\",\"attendee_id\":\"" + rs.getString("attendee_id") +
+                        "\",\"checkintime\":\"" + rs.getString("checkintime") +
+                        "\",\"checkouttime\":\"" + rs.getString("checkouttime") +
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"login\":\"" + rs.getString("login") + "\"},";
+            }
+            if (result.length() > 0) {
+                result = result.substring(0, result.length() - 1);
+            }
+            result = "[" + result + "]";
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
     public String getRecentMeetings(int limit) {
         String result = "";
 

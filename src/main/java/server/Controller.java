@@ -156,11 +156,10 @@ public class Controller {
             result = "{\"error\":\"meeting is closed\"}";
             return result;
         }
-        if (db.checkIn(username, meetingId) == 0) {
-            result = "{\"result\":\"" + "1" + "\"}";
-        } else {
-            result = "{\"error\":\"badness occurred\"}";
-        }
+
+        int returnCode = db.checkIn(username, meetingId);
+        result = "{\"result\":\"" + returnCode + "\"}";
+
         return result;
     }
 

@@ -10,6 +10,9 @@ import java.sql.Timestamp;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
 /***
  * Interface between API and database.
  */
@@ -20,6 +23,9 @@ public class Database {
     private static Connection conn = null;
 
     private static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+
+    private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
 
     public Database() {
         try {
@@ -36,12 +42,16 @@ public class Database {
     public int logIn(String login, String password) {
         int result = 1;
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND password = ? AND role = 1 AND status = 1");
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND role = 1 AND status = 1");
             stmt.setString(1, login);
-            stmt.setString(2, password);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                result = 0;
+                // get password from db
+                String storedPass = rs.getString("password");
+                // check password
+                if (passwordEncoder.matches(password, storedPass)) {
+                    result = 0;
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -55,7 +65,7 @@ public class Database {
     public int register(String id, String name, String email, String registrationCode) {
         int result = 1;
         System.out.println("registration code: " + registrationCode);
-        if (registrationCode.equals("FRC116")) {
+        if (registrationCode.equalsIgnoreCase("FRC116")) {
             try {
                 // check if user exists
                 PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
@@ -81,7 +91,8 @@ public class Database {
 
     // username, meetingId in
     // 0 = success
-    // 1 = error
+    // 1 = already checked in
+    // 2 = doesn't exist
     public int checkIn(String username, String meetingId) {
         int result = 1;
         try {
@@ -98,6 +109,8 @@ public class Database {
                 stmt.executeUpdate();
                 result = 0;
 
+            } else {
+                result = 2;
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -563,14 +576,27 @@ public class Database {
     public int createMeeting(String username) {
         int result = 0;
         try {
-            PreparedStatement stmt = conn.prepareStatement(
+            // check if a meeting is already open
+            PreparedStatement stmt = conn.prepareStatement("SELECT id FROM meetings WHERE closetime IS NULL");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return 0;
+            }
+
+            stmt = conn.prepareStatement(
                     "INSERT INTO meetings (opentime, openedby) VALUES (now(), (select id from users where login = ?))",
                     Statement.RETURN_GENERATED_KEYS);
             stmt.setString(1, username);
             stmt.executeUpdate();
-            ResultSet rs = stmt.getGeneratedKeys();
+            rs = stmt.getGeneratedKeys();
             if (rs.next()) {
                 result = rs.getInt(1);
+            
+                // check in the user
+                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id) VALUES (?, (SELECT id FROM users WHERE login = ?))");
+                stmt.setInt(1, result);
+                stmt.setString(2, username);
+                stmt.executeUpdate();
             }
 
         } catch (SQLException e) {

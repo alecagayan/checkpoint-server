@@ -153,6 +153,8 @@ public class Database {
         if (username == null || username.trim().length() == 0) {
             return result;
         }
+        // encrypt password
+        String encryptedPassword = passwordEncoder.encode(password);
         try {
             PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (name, email, login, role, status, password) VALUES (?, ?, ?, ?, ?, ?)");
             stmt.setString(1, name);
@@ -160,7 +162,7 @@ public class Database {
             stmt.setString(3, username);
             stmt.setInt(4, role);
             stmt.setInt(5, status);
-            stmt.setString(6, password);
+            stmt.setString(6, encryptedPassword);
             stmt.executeUpdate();
             result = 0;
         } catch (SQLException e) {

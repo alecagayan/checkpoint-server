@@ -225,7 +225,7 @@ public class Database {
                     "SELECT users.id, users.name, users.email, users.login, users.role, users.status FROM users WHERE users.id = ?");
             stmt.setString(1, userId);
             ResultSet rs = stmt.executeQuery();
-
+            
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getString("id") +
                         "\",\"name\":\"" + rs.getString("name") +
@@ -241,12 +241,36 @@ public class Database {
         return result;
     }
 
-    public String getAttendance(String userId) {
+    public String getUserByLogin(String login) {
+        String result = "";
+        System.out.println("login: " + login);
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT users.id, users.name, users.email, users.login, users.role, users.status FROM users WHERE users.login = ?");
+            stmt.setString(1, login);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"login\":\"" + rs.getString("login") + "\"}";
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        System.out.println("result: " + result);
+        return result;
+    }
+
+    public String getAttendance(String userId, String startDate, String endDate) {
         String result = "";
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT meetings.id, meetings.opentime, meetings.closetime, attendees.checkintime, attendees.checkouttime FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ?");
+                    "SELECT meetings.id, meetings.opentime, meetings.closetime, attendees.checkintime, attendees.checkouttime FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ? AND meetings.opentime >= ? AND meetings.closetime <= ? ORDER BY meetings.opentime DESC");
             stmt.setString(1, userId);
+            stmt.setString(2, startDate);
+            stmt.setString(3, endDate);
+        
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -266,19 +290,68 @@ public class Database {
         return result;
     }
 
+    //percentage of total hours attended by user between start and end date
+    public String getPercentages(String userId, String startDate, String endDate) {
+        String result = "";
+
+
+        DecimalFormat df = new DecimalFormat();
+        df.setMaximumFractionDigits(2);
+
+        try {
+            //get total amount of meeting hours between given dates
+            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ?");
+            meeting_hours.setString(1, startDate);
+            meeting_hours.setString(2, endDate);
+            ResultSet hours_rs = meeting_hours.executeQuery();
+
+            //get total amount of hours attended by user between given dates
+            PreparedStatement attended_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_attended_hours FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ? AND meetings.opentime >= ? AND meetings.opentime <= ?");
+            attended_hours.setString(1, userId);
+            attended_hours.setString(2, startDate);
+            attended_hours.setString(3, endDate);
+            ResultSet attended_rs = attended_hours.executeQuery();
+
+            //calculate percentage
+            if (hours_rs.next() && attended_rs.next()) {
+                double total_meeting_hours = hours_rs.getDouble("total_meeting_hours");
+                double total_attended_hours = attended_rs.getDouble("total_attended_hours");
+                double percentage = total_attended_hours / total_meeting_hours * 100;
+                result = String.valueOf(df.format(percentage));
+            }
+
+
+            // if (result.length() > 0) {
+            //     result = result.substring(0, result.length() - 1);
+            // }
+            // result = "[" + result + "]";
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
     // return all users and meeting percentage between given dates in JSON format
     public String getUsersBetweenDates(String startDate, String endDate) {
         String result = "";
         try {
             // select all users from users table and select attendee count from attendees
             // table and join
-            // calculate hours based on checkin and checkout times for each user            
-
+            // calculate hours based on checkin and checkout times for each user   
             PreparedStatement stmt = conn.prepareStatement(
                     "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id order by users.name asc");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
             ResultSet rs = stmt.executeQuery();
+
+            //get total amount of meeting hours between given dates
+            PreparedStatement meeting_hours = conn.prepareStatement(
+                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ?");
+            meeting_hours.setString(1, startDate);
+            meeting_hours.setString(2, endDate);
+            ResultSet hours_rs = meeting_hours.executeQuery();
 
             PreparedStatement meeting_count = conn.prepareStatement(
                     "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
@@ -291,6 +364,11 @@ public class Database {
                 countmeeting = meeting_rs.getInt("meeting_count");
             }
 
+            double total_meeting_hours = 0;
+            while (hours_rs.next()) {
+                total_meeting_hours = hours_rs.getDouble("total_meeting_hours");
+            }
+
             DecimalFormat df = new DecimalFormat();
             df.setMaximumFractionDigits(2);
 
@@ -300,7 +378,8 @@ public class Database {
                         "\",\"email\":\"" + rs.getString("email") +
                         "\",\"login\":\"" + rs.getString("login") +
                         "\",\"attendee_count\":\"" + df.format(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) +
-                        "%\",\"total_hours\":\"" + df.format(rs.getDouble("total_hours")) + "\"},";
+                        "\",\"hour_percentage\":\"" + df.format(rs.getDouble("total_hours") / (total_meeting_hours + 0.0) * 100) +
+                        "\",\"total_hours\":\"" + df.format(rs.getDouble("total_hours")) + "\"},";
             }
             if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);

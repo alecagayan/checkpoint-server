@@ -202,10 +202,26 @@ public class Controller {
         return result;
     }
 
-    @GetMapping(value = "/attendance", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String attendance(@RequestParam String userId) {
+    @GetMapping(value = "/userbylogin", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String userbylogin(@RequestParam String login) {
         Database db = new Database();
-        String result = db.getAttendance(userId);
+        String result = db.getUserByLogin(login);
+        return result;
+    }
+
+    @GetMapping(value = "/attendance", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String attendance(@RequestParam String userId, @RequestParam(value = "startDate", defaultValue = "") String startDate,
+    @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+        Database db = new Database();
+        String result = db.getAttendance(userId, startDate, endDate);
+        return result;
+    }
+
+    @GetMapping(value = "/percentages", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String percentages(@RequestParam String userId, @RequestParam(value = "startDate", defaultValue = "") String startDate,
+    @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+        Database db = new Database();
+        String result = db.getPercentages(userId, startDate, endDate);
         return result;
     }
 

@@ -264,13 +264,21 @@ public class Database {
 
     public String getAttendance(String userId, String startDate, String endDate) {
         String result = "";
+        PreparedStatement stmt = null;
         try {
-            PreparedStatement stmt = conn.prepareStatement(
+            // if startdate and enddate are blank, then select all
+            if (startDate == null || startDate.trim().length() == 0) {
+                stmt = conn.prepareStatement(
+                    "SELECT meetings.id, meetings.opentime, meetings.closetime, attendees.checkintime, attendees.checkouttime FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ? ORDER BY meetings.opentime DESC");
+                    stmt.setString(1, userId);
+            } else {
+                stmt = conn.prepareStatement(
                     "SELECT meetings.id, meetings.opentime, meetings.closetime, attendees.checkintime, attendees.checkouttime FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ? AND meetings.opentime >= ? AND meetings.closetime <= ? ORDER BY meetings.opentime DESC");
-            stmt.setString(1, userId);
-            stmt.setString(2, startDate);
-            stmt.setString(3, endDate);
-        
+                    stmt.setString(1, userId);
+                    stmt.setString(2, startDate);
+                    stmt.setString(3, endDate);
+                }
+
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -319,7 +327,6 @@ public class Database {
                 double percentage = total_attended_hours / total_meeting_hours * 100;
                 result = String.valueOf(df.format(percentage));
             }
-
 
             // if (result.length() > 0) {
             //     result = result.substring(0, result.length() - 1);

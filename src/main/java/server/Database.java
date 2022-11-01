@@ -89,23 +89,82 @@ public class Database {
         return result;
     }
 
-    // username, meetingId in
-    // 0 = success
-    // 1 = already checked in
-    // 2 = doesn't exist
-    public int checkIn(String username, String meetingId) {
+    public int registerOrg(String orgName, String orgId, String name, String email, String username, String password) {
+        //create new organization with name orgName and short orgId
         int result = 1;
+        int orgIdInt = 0;
+        int ownerId = 0;
+
         try {
-            // get attendee_id from users table
+            PreparedStatement userReg = conn.prepareStatement("INSERT INTO users (login, password, name, email, role) VALUES (?, ?, ?, ?, 1)");
+            userReg.setString(1, username);
+            userReg.setString(2, passwordEncoder.encode(password));
+            userReg.setString(3, name);
+            userReg.setString(4, email);
+            userReg.executeUpdate();
+
+            // get users id
             PreparedStatement stmt = conn.prepareStatement("SELECT id FROM users WHERE login = ?");
             stmt.setString(1, username);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
+                ownerId = rs.getInt("id");
+            }
+
+            // add organization
+            PreparedStatement orgReg = conn.prepareStatement("INSERT INTO organizations (name, short, owner) VALUES (?, ?, ?)");
+            orgReg.setString(1, orgName);
+            orgReg.setString(2, orgId);
+            orgReg.setInt(3, ownerId);
+            orgReg.executeUpdate();
+
+            // get org id
+            stmt = conn.prepareStatement("SELECT id FROM organizations WHERE short = ?");
+            stmt.setString(1, orgId);
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                orgIdInt = rs.getInt("id");
+            }
+            
+            //update user to assign to org
+            PreparedStatement userUpdate = conn.prepareStatement("UPDATE users SET org = ? WHERE id = ?");
+            userUpdate.setInt(1, orgIdInt);
+            userUpdate.setInt(2, ownerId);
+            userUpdate.executeUpdate();
+
+            result = 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return result;
+        }
+        
+        return result;
+
+    }
+
+
+    // username, meetingId in
+    // 0 = success
+    // 1 = already checked in
+    // 2 = doesn't exist
+    public int checkIn(String username, String meetingId, Token userToken) {
+        int result = 1;
+        try {
+
+            String orgId = userToken.getOrgId();
+
+            // get attendee_id from users table
+            PreparedStatement stmt = conn.prepareStatement("SELECT id FROM users WHERE login = ? AND org = ?");
+            stmt.setString(1, username);
+            stmt.setString(2, orgId);   
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
                 String attendeeId = rs.getString("id");
-                // insert into attendees table meeting_id, attendee_id
-                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id) VALUES (?, ?)");
+                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org) VALUES (?, ?, ?)");
                 stmt.setString(1, meetingId);
                 stmt.setString(2, attendeeId);
+                stmt.setString(3, orgId);
                 stmt.executeUpdate();
                 result = 0;
 
@@ -190,13 +249,14 @@ public class Database {
     }
 
     // return all users in JSON format
-    public String getUsers() {
+    public String getUsers(String orgId) {
         String result = "";
         try {
             // select all users from users table and select attendee count from attendees
             // table and join
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id GROUP BY users.id");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE users.org = ? GROUP BY users.id");
+            stmt.setString(1, orgId);
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -341,29 +401,32 @@ public class Database {
     }
 
     // return all users and meeting percentage between given dates in JSON format
-    public String getUsersBetweenDates(String startDate, String endDate) {
+    public String getUsersBetweenDates(String orgId, String startDate, String endDate) {
         String result = "";
         try {
             // select all users from users table and select attendee count from attendees
             // table and join
             // calculate hours based on checkin and checkout times for each user   
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id order by users.name asc");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
+            stmt.setString(3, orgId);
             ResultSet rs = stmt.executeQuery();
 
             //get total amount of meeting hours between given dates
             PreparedStatement meeting_hours = conn.prepareStatement(
-                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ?");
+                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ?");
             meeting_hours.setString(1, startDate);
             meeting_hours.setString(2, endDate);
+            meeting_hours.setString(3, orgId);
             ResultSet hours_rs = meeting_hours.executeQuery();
 
             PreparedStatement meeting_count = conn.prepareStatement(
-                    "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
+                    "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?");
             meeting_count.setString(1, startDate);
             meeting_count.setString(2, endDate);
+            meeting_count.setString(3, orgId);
             ResultSet meeting_rs = meeting_count.executeQuery();
 
             int countmeeting = 1;
@@ -443,13 +506,14 @@ public class Database {
     // return all raw data from attenees table in JSON format between given dates
     // append meeting checkin and checkout times to result
     // append user name and login to result
-    public String getRawDataBetweenDates(String startDate, String endDate) {
+    public String getRawDataBetweenDates(String orgId, String startDate, String endDate) {
         String result = "";
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT attendees.id, attendees.meeting_id, attendees.attendee_id, attendees.checkintime, attendees.checkouttime, users.name, users.login FROM attendees JOIN users ON attendees.attendee_id = users.id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?)");
+                    "SELECT attendees.id, attendees.meeting_id, attendees.attendee_id, attendees.checkintime, attendees.checkouttime, users.name, users.login FROM attendees JOIN users ON attendees.attendee_id = users.id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ? and org = ?) ORDER BY attendees.meeting_id");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
+            stmt.setString(3, orgId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getString("id") +
@@ -496,12 +560,14 @@ public class Database {
     // return amount of checkins for all users in JSON format
     // each checkin is a row in the attendees table
 
-    // return all meetings in JSON format
-    public String getMeetings() {
+    // return all meetings with orgId in JSON format
+    public String getMeetings(String orgId) {
         String result = "";
+        System.out.println("getting meetings with orgid: " + orgId);
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id GROUP BY m.id ORDER BY m.opentime DESC ");
+                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id WHERE m.org = ? GROUP BY m.id ORDER BY m.opentime DESC ");
+            stmt.setString(1, orgId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getInt("id") +
@@ -661,7 +727,7 @@ public class Database {
     }
 
     // create meeting, returns the id of the new meeting or 0 if error
-    public int createMeeting(String username) {
+    public int createMeeting(String username, Token userToken) {
         int result = 0;
         try {
             // check if a meeting is already open
@@ -672,18 +738,20 @@ public class Database {
             }
 
             stmt = conn.prepareStatement(
-                    "INSERT INTO meetings (opentime, openedby) VALUES (now(), (select id from users where login = ?))",
+                    "INSERT INTO meetings (opentime, openedby, org) VALUES (now(), (select id from users where login = ?), ?)",
                     Statement.RETURN_GENERATED_KEYS);
             stmt.setString(1, username);
+            stmt.setString(2, userToken.getOrgId());
             stmt.executeUpdate();
             rs = stmt.getGeneratedKeys();
             if (rs.next()) {
                 result = rs.getInt(1);
             
                 // check in the user
-                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id) VALUES (?, (SELECT id FROM users WHERE login = ?))");
+                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org) VALUES (?, (SELECT id FROM users WHERE login = ?), ?)");
                 stmt.setInt(1, result);
                 stmt.setString(2, username);
+                stmt.setString(3, userToken.getOrgId());
                 stmt.executeUpdate();
             }
 
@@ -725,6 +793,21 @@ public class Database {
             stmt2.executeUpdate();
             result = 0;
 
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public String getOrgIdFromUsername(String username) {
+        String result = null;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT org FROM users WHERE login = ?");
+            stmt.setString(1, username);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = rs.getString("org");
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

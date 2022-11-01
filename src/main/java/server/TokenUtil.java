@@ -22,14 +22,14 @@ public class TokenUtil {
 
         String decrypted = AESUtil.decrypt(algorithm, cipherText, key, iv);
         String[] tokenParts = decrypted.split("\\|");
-        if (tokenParts.length != 6) {
+        if (tokenParts.length != 7) {
             throw new Exception("Invalid token");
         }
         if (!tokenParts[0].equals("v1")) {
             throw new Exception("Invalid token version: " + tokenParts[0]);
         }
         return new Token(tokenParts[1], new Date(Long.parseLong(tokenParts[2])),
-                new Date(Long.parseLong(tokenParts[3])), tokenParts[4]);
+                new Date(Long.parseLong(tokenParts[3])), tokenParts[4], tokenParts[5]);
 
     }
 

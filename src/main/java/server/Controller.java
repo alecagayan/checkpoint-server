@@ -71,6 +71,26 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "/registerorg", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String registerOrg(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String orgName = jsonObject.getString("orgName");
+        String orgId = jsonObject.getString("orgId");
+        String name = jsonObject.getString("name");
+        String email = jsonObject.getString("email");
+        String username = jsonObject.getString("username");
+        String password = jsonObject.getString("password");
+
+        String result = "";
+        Database db = new Database();
+        if (db.registerOrg(orgName, orgId, name, email, username, password) == 0) {
+            result = "{\"result\":\"" + "1" + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
     @PostMapping(value = "/adduser", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String adduser(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
@@ -157,7 +177,7 @@ public class Controller {
             return result;
         }
 
-        int returnCode = db.checkIn(username, meetingId);
+        int returnCode = db.checkIn(username, meetingId, userToken);
         result = "{\"result\":\"" + returnCode + "\"}";
 
         return result;
@@ -189,9 +209,16 @@ public class Controller {
 
 
     @GetMapping(value = "/users", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String users() {
+    public @ResponseBody String users(@RequestParam String token) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
         Database db = new Database();
-        String result = db.getUsers();
+        String result = db.getUsers(userToken.getOrgId());
         return result;
     }
 
@@ -227,17 +254,31 @@ public class Controller {
 
     @GetMapping(value = "/reportbydate", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String reportByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
-            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+            @RequestParam(value = "endDate", defaultValue = "") String endDate, @RequestParam String token) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
         Database db = new Database();
-        String result = db.getUsersBetweenDates(startDate, endDate);
+        String result = db.getUsersBetweenDates(userToken.getOrgId(), startDate, endDate);
         return result;
     }
 
     @GetMapping(value = "/rawdatabydate", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String rawDataByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
-            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+            @RequestParam(value = "endDate", defaultValue = "") String endDate, @RequestParam String token) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
         Database db = new Database();
-        String result = db.getRawDataBetweenDates(startDate, endDate);
+        String result = db.getRawDataBetweenDates(userToken.getOrgId(), startDate, endDate);
         return result;
     }
 
@@ -281,9 +322,15 @@ public class Controller {
     }
 
     @GetMapping(value = "/meetings", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String meetings() {
+    public @ResponseBody String meetings(@RequestParam String token) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
         Database db = new Database();
-        String result = db.getMeetings();
+        String result = db.getMeetings(userToken.getOrgId());
         return result;
     }
 
@@ -302,7 +349,7 @@ public class Controller {
         }
 
         Database db = new Database();
-        int meetingId = db.createMeeting(userToken.getUsername());
+        int meetingId = db.createMeeting(userToken.getUsername(), userToken);
         if (meetingId != 0) {
             result = "{\"meeting\":\"" + meetingId + "\"}";
         } else {
@@ -336,17 +383,6 @@ public class Controller {
         return result;
     }
 
-    @GetMapping("signin")
-    public String signin(@RequestParam String student_id, @RequestParam String account) {
-        System.out.println("Signin Called with for student_id : " + student_id);
-        Database db = new Database();
-        if (db.checkIn(student_id, account) == 0) {
-            return "Signed in " + student_id + " for " + account;
-        } else {
-            return "Error";
-        }
-    }
-
     @PostMapping(value = "/test", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> example() {
         return Collections.singletonMap("key", "value");
@@ -370,8 +406,11 @@ public class Controller {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + (1000 * TOKEN_EXPIRY_SECONDS));
 
+        //get user orgaization id
+        String orgId = db.getOrgIdFromUsername(username);
+
         // generate token
-        Token token = new Token(username, now, expiry, "admin");
+        Token token = new Token(username, now, expiry, "admin", orgId);
         String encryptedToken = TokenUtil.encrypt(token, secretKey);
         return encryptedToken;
 

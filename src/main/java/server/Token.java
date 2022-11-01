@@ -8,12 +8,14 @@ public class Token {
     public Date issueDate;
     public Date expiryDate;
     public String role;
+    public String org;
 
-    public Token (String username, Date issueDate, Date expiryDate, String role) {
+    public Token (String username, Date issueDate, Date expiryDate, String role, String org) {
         this.username = username;
         this.issueDate = issueDate;
         this.expiryDate = expiryDate;
         this.role = role;
+        this.org = org;
     }
 
     public String getUsername() {
@@ -32,8 +34,12 @@ public class Token {
         return role;
     }
 
+    public String getOrgId() {
+        return org;
+    }
+
     public String toString() {
-        return "v1|" + username + "|" + issueDate.getTime() + "|" + expiryDate.getTime() + "|" + role + "|v1";
+        return "v1|" + username + "|" + issueDate.getTime() + "|" + expiryDate.getTime() + "|" + role + "|" + org + "|v1";
     }
     
 }

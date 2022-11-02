@@ -55,15 +55,24 @@ public class Controller {
 
     @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String register(@RequestBody String json) {
+        String result = "";
+
         JSONObject jsonObject = new JSONObject(json);
         String id = jsonObject.getString("id");
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
         String registrationCode = jsonObject.getString("registrationcode");
+        String token = jsonObject.getString("token");
 
-        String result = "";
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
         Database db = new Database();
-        if (db.register(id, name, email, registrationCode) == 0) {
+        if (db.register(id, name, email, registrationCode, userToken) == 0) {
             result = "{\"result\":\"" + "1" + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
@@ -283,13 +292,20 @@ public class Controller {
     }
 
     @GetMapping(value = "/recentmeetings", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String recentMeetings(@RequestParam(value = "limit") String limit) {
+    public @ResponseBody String recentMeetings(@RequestParam String limit, @RequestParam String token) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
         Database db = new Database();
         int size = 10;
         if (limit != null) {
             size = Integer.parseInt(limit);
         }
-        String result = db.getRecentMeetings(size);
+        String result = db.getRecentMeetings(size, userToken);
         return result;
     }
 

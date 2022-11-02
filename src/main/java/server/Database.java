@@ -62,9 +62,11 @@ public class Database {
     // id, name, email, registrationcode in
     // 0 = success
     // 1 = error
-    public int register(String id, String name, String email, String registrationCode) {
+    public int register(String id, String name, String email, String registrationCode, Token userToken) {
         int result = 1;
         System.out.println("registration code: " + registrationCode);
+        String orgId = userToken.getOrgId();
+
         if (registrationCode.equalsIgnoreCase("FRC116")) {
             try {
                 // check if user exists
@@ -75,10 +77,11 @@ public class Database {
                     result = 1;
                 } else {
                     // add user
-                    stmt = conn.prepareStatement("INSERT INTO users (login, name, email) VALUES (?, ?, ?)");
+                    stmt = conn.prepareStatement("INSERT INTO users (login, name, email, org) VALUES (?, ?, ?, ?)");
                     stmt.setString(1, id);
                     stmt.setString(2, name);
                     stmt.setString(3, email);
+                    stmt.setString(4, orgId);
                     stmt.executeUpdate();
                     result = 0;
                 }
@@ -534,14 +537,16 @@ public class Database {
         return result;
     }
 
-    public String getRecentMeetings(int limit) {
+    public String getRecentMeetings(int limit, Token userToken) {
         String result = "";
+        String orgId = userToken.getOrgId();
 
         // get attendee count for last few meetings
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.opentime as meeting_time, COUNT(a.attendee_id) as attendee_count FROM attendees a, meetings m WHERE m.id = a.meeting_id group by m.opentime order by m.opentime asc limit ?");
-            stmt.setInt(1, limit);
+                    "SELECT m.opentime as meeting_time, COUNT(a.attendee_id) as attendee_count FROM attendees a, meetings m WHERE m.id = a.meeting_id AND m.org = ? group by m.opentime order by m.opentime desc limit ?");
+            stmt.setString(1, orgId);
+            stmt.setInt(2, limit);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 result += "{\"attendee_count\":\"" + rs.getInt("attendee_count") +

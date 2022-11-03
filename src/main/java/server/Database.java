@@ -371,7 +371,7 @@ public class Database {
 
         try {
             //get total amount of meeting hours between given dates
-            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ?");
+            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND type = 0");
             meeting_hours.setString(1, startDate);
             meeting_hours.setString(2, endDate);
             ResultSet hours_rs = meeting_hours.executeQuery();
@@ -390,6 +390,8 @@ public class Database {
                 double percentage = total_attended_hours / total_meeting_hours * 100;
                 result = String.valueOf(df.format(percentage));
             }
+
+            System.out.println("total meeting hours: " + hours_rs.getDouble("total_meeting_hours"));
 
             // if (result.length() > 0) {
             //     result = result.substring(0, result.length() - 1);
@@ -419,7 +421,7 @@ public class Database {
 
             //get total amount of meeting hours between given dates
             PreparedStatement meeting_hours = conn.prepareStatement(
-                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ?");
+                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ? AND type = 0");
             meeting_hours.setString(1, startDate);
             meeting_hours.setString(2, endDate);
             meeting_hours.setString(3, orgId);
@@ -539,18 +541,18 @@ public class Database {
 
     public String getRecentMeetings(int limit, Token userToken) {
         String result = "";
-        String orgId = userToken.getOrgId();
-
-        // get attendee count for last few meetings
+        String orgId = userToken.getOrgId();        
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.opentime as meeting_time, COUNT(a.attendee_id) as attendee_count FROM attendees a, meetings m WHERE m.id = a.meeting_id AND m.org = ? group by m.opentime order by m.opentime desc limit ?");
+                    "SELECT m.opentime as meeting_time, COUNT(a.attendee_id) as attendee_count FROM attendees a, meetings m WHERE m.id = a.meeting_id AND m.org = ? group by m.opentime order by m.opentime desc limit ?", ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_UPDATABLE);
             stmt.setString(1, orgId);
             stmt.setInt(2, limit);
             ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                result += "{\"attendee_count\":\"" + rs.getInt("attendee_count") +
-                        "\",\"meeting_time\":\"" + rs.getString("meeting_time") + "\"},";
+            //read rs backwards
+            rs.afterLast();
+            while (rs.previous()) {
+                result += "{\"meeting_time\":\"" + rs.getString("meeting_time") +
+                        "\",\"attendee_count\":\"" + rs.getString("attendee_count") + "\"},";
             }
             if (result.length() > 0) {
                 result = result.substring(0, result.length() - 1);
@@ -571,15 +573,22 @@ public class Database {
         System.out.println("getting meetings with orgid: " + orgId);
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id WHERE m.org = ? GROUP BY m.id ORDER BY m.opentime DESC ");
+                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location, m.type, COUNT(a.id) as attendee_count FROM meetings m LEFT JOIN attendees a ON m.id = a.meeting_id WHERE m.org = ? GROUP BY m.id ORDER BY m.opentime DESC ");
             stmt.setString(1, orgId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
+                String type = "";
+                if (rs.getInt("type") == 0) {
+                    type = "Required";
+                } else if (rs.getInt("type") == 1) {
+                    type = "Optional";
+                }
                 result += "{\"id\":\"" + rs.getInt("id") +
                         "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) +
                         "\",\"openedby\":\"" + emptyIfNull(rs.getString("openedby")) +
                         "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) +
                         "\",\"attendee_count\":\"" + rs.getInt("attendee_count") +
+                        "\",\"type\":\"" + type +
                         "\",\"location\":\"" + rs.getString("location") + "\"},";
             }
             if (result.length() > 0) {
@@ -622,7 +631,7 @@ public class Database {
         String result = "";
         try {
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.location FROM meetings m WHERE m.id = ?");
+                    "SELECT m.id, m.opentime, (select name from users where id = m.openedby) as openedby, m.closetime, m.type, m.location FROM meetings m WHERE m.id = ?");
             stmt.setString(1, meetingId);
             ResultSet rs = stmt.executeQuery();
             result = "{";
@@ -631,6 +640,7 @@ public class Database {
                         "\",\"opentime\":\"" + emptyIfNull(rs.getTimestamp("opentime")) +
                         "\",\"openedby\":\"" + emptyIfNull(rs.getString("openedby")) +
                         "\",\"closetime\":\"" + emptyIfNull(rs.getTimestamp("closetime")) +
+                        "\",\"type\":\"" + rs.getInt("type") +
                         "\",\"location\":\"" + rs.getString("location") + "\"";
             }
             // get id of the next meeting
@@ -753,7 +763,7 @@ public class Database {
                 result = rs.getInt(1);
             
                 // check in the user
-                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org) VALUES (?, (SELECT id FROM users WHERE login = ?), ?)");
+                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org, type) VALUES (?, (SELECT id FROM users WHERE login = ?), ?, 0)");
                 stmt.setInt(1, result);
                 stmt.setString(2, username);
                 stmt.setString(3, userToken.getOrgId());
@@ -801,6 +811,33 @@ public class Database {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        return result;
+    }
+
+    public int changeMeetingType(String meetingId) {
+        //get meeting type
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT type FROM meetings WHERE id = ?");
+            stmt.setString(1, meetingId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String type = rs.getString("type");
+                if (type.equals("1")) {
+                    type = "0";
+                } else {
+                    type = "1";
+                }
+                PreparedStatement stmt2 = conn.prepareStatement("UPDATE meetings SET type = ? WHERE id = ?");
+                stmt2.setString(1, type);
+                stmt2.setString(2, meetingId);
+                stmt2.executeUpdate();
+                result = 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
         return result;
     }
 

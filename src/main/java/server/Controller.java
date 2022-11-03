@@ -399,6 +399,32 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "changemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String changeMeetingType(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        System.out.println("jsonObject: " + jsonObject); 
+        String token = jsonObject.getString("token");
+        String meetingId = jsonObject.getString("meetingId");
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        Database db = new Database();
+        if (db.changeMeetingType(meetingId) == 0) {
+            result = "{\"meeting\":\"" + meetingId + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+
+
     @PostMapping(value = "/test", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> example() {
         return Collections.singletonMap("key", "value");

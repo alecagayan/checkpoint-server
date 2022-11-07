@@ -763,7 +763,7 @@ public class Database {
                 result = rs.getInt(1);
             
                 // check in the user
-                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org, type) VALUES (?, (SELECT id FROM users WHERE login = ?), ?, 0)");
+                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org) VALUES (?, (SELECT id FROM users WHERE login = ?), ?)");
                 stmt.setInt(1, result);
                 stmt.setString(2, username);
                 stmt.setString(3, userToken.getOrgId());

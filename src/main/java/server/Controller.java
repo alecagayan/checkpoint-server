@@ -7,11 +7,17 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Date;
@@ -24,6 +30,18 @@ import org.json.*;
 public class Controller {
 
     public static final int TOKEN_EXPIRY_SECONDS = 60 * 60 * 2;
+
+    @Autowired
+    private JavaMailSender emailSender;
+
+    public void sendMessage(String to, String from, String subject, String text) {
+        SimpleMailMessage message = new SimpleMailMessage(); 
+        message.setFrom(from);
+        message.setTo(to); 
+        message.setSubject(subject); 
+        message.setText(text);
+        emailSender.send(message);
+    }     
 
     @GetMapping("/hello")
     public String hello() {
@@ -61,7 +79,6 @@ public class Controller {
         String id = jsonObject.getString("id");
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
-        String registrationCode = jsonObject.getString("registrationcode");
         String token = jsonObject.getString("token");
 
         // check if token is valid
@@ -72,7 +89,7 @@ public class Controller {
         }
 
         Database db = new Database();
-        if (db.register(id, name, email, registrationCode, userToken) == 0) {
+        if (db.register(id, name, email, userToken) == 0) {
             result = "{\"result\":\"" + "1" + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
@@ -212,6 +229,64 @@ public class Controller {
             result = "{\"result\":\"" + "1" + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/forgotpassword", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String forgotPassword(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String email = jsonObject.getString("email");
+        String result = "";
+
+        Database db = new Database();
+        String jsonUser = db.getUserByEmail(email);
+        if (jsonUser != null && !jsonUser.isEmpty()) {
+
+            try {
+                String token = generatePasswordResetTokenForUser(email);
+
+                // get url from config
+                String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
+                String resetUrl = Config.getProperty("base.url") + "/resetpassword/" + encodedToken;
+
+                // send email
+                String subject = "Checkpoint Password Reset";
+                String body = "Please click the following link to reset your password: " + resetUrl + ". This link will expire in 30 minutes.";
+                String from = Config.getProperty("mail.from");
+                sendMessage(email, from, subject, body);
+            
+                result = "{\"result\":\"" + "1" + "\"}";
+            }
+            catch (Exception e) {
+                result = "{\"error\":\"badness occurred\"}";
+            }
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/resetpassword", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String resetPassword(@RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String token = jsonObject.getString("token");
+        String password = jsonObject.getString("password");
+        String repeatPassword = jsonObject.getString("repeatPassword");
+        String result = "";
+
+        Database db = new Database();
+        PasswordResetToken passwordResetToken = getPasswordResetToken(token);
+        if (passwordResetToken == null || passwordResetToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        String email = passwordResetToken.getEmail();
+        if (email != null && !email.isEmpty()) {
+            if (password.equals(repeatPassword) && db.updatePasswordByEmail(email, password) == 0) {
+                result = "{\"result\":\"" + "1" + "\"}";
+            } else {
+                result = "{\"error\":\"badness occurred\"}";
+            }
         }
         return result;
     }
@@ -399,7 +474,7 @@ public class Controller {
         return result;
     }
 
-    @PostMapping(value = "changemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/changemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String changeMeetingType(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         System.out.println("jsonObject: " + jsonObject); 
@@ -458,6 +533,24 @@ public class Controller {
 
     }
 
+    private String generatePasswordResetTokenForUser(String email) throws Exception {
+        // check database for secret key
+        Database db = new Database();
+        String secretKey = db.getSecretKey();
+        if (secretKey == null) {
+            secretKey = AESUtil.generateKeyAndIv(256);
+            db.setSecretKey(secretKey);
+        }
+
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + (1000 * 1800));
+
+        // generate token
+        PasswordResetToken token = new PasswordResetToken(email, now, expiry);
+        String encryptedToken = PasswordResetTokenUtil.encrypt(token, secretKey);
+        return encryptedToken;        
+    }
+
     private Token getToken(String token) {
         // check database for secret key
         Database db = new Database();
@@ -475,5 +568,24 @@ public class Controller {
 
         return decryptedToken;
     }
+
+    private PasswordResetToken getPasswordResetToken(String token) {
+        // check database for secret key
+        Database db = new Database();
+        String secretKey = db.getSecretKey();
+        if (secretKey == null) {
+            System.out.println("No secret key found in database");
+            return null;
+        }
+        PasswordResetToken decryptedToken = null;
+        try {
+            decryptedToken = PasswordResetTokenUtil.decrypt(token, secretKey);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return decryptedToken;
+    }
+
 
 }

@@ -17,19 +17,16 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  * Interface between API and database.
  */
 public class Database {
-    private static final String url = "jdbc:mysql://checkpointdb:3306/checkpoint";
-    private static final String username = "checkin";
-    private static final String password = "Chkpntuser!23";
+
     private static Connection conn = null;
-
     private static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
-
     private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
 
     public Database() {
         try {
-            // load driver
+            String url = Config.getProperty("db.url");
+            String username = Config.getProperty("db.username");
+            String password = Config.getProperty("db.password");
             conn = DriverManager.getConnection(url, username, password);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -62,32 +59,29 @@ public class Database {
     // id, name, email, registrationcode in
     // 0 = success
     // 1 = error
-    public int register(String id, String name, String email, String registrationCode, Token userToken) {
+    public int register(String id, String name, String email, Token userToken) {
         int result = 1;
-        System.out.println("registration code: " + registrationCode);
         String orgId = userToken.getOrgId();
 
-        if (registrationCode.equalsIgnoreCase("FRC116")) {
-            try {
-                // check if user exists
-                PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
+        try {
+            // check if  user exists
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
+            stmt.setString(1, id);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = 1;
+            } else {
+                // add user
+                stmt = conn.prepareStatement("INSERT INTO users (login, name, email, org) VALUES (?, ?, ?, ?)");
                 stmt.setString(1, id);
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next()) {
-                    result = 1;
-                } else {
-                    // add user
-                    stmt = conn.prepareStatement("INSERT INTO users (login, name, email, org) VALUES (?, ?, ?, ?)");
-                    stmt.setString(1, id);
-                    stmt.setString(2, name);
-                    stmt.setString(3, email);
-                    stmt.setString(4, orgId);
-                    stmt.executeUpdate();
-                    result = 0;
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
+                stmt.setString(2, name);
+                stmt.setString(3, email);
+                stmt.setString(4, orgId);
+                stmt.executeUpdate();
+                result = 0;
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
         return result;
     }
@@ -251,6 +245,23 @@ public class Database {
         return result;
     }
 
+    public int updatePasswordByEmail(String email, String password) {
+        int result = 1;
+        try {
+            // encrypt password
+            String encryptedPassword = passwordEncoder.encode(password);
+            PreparedStatement stmt = conn.prepareStatement("UPDATE users SET password = ? WHERE email = ?");
+            stmt.setString(1, encryptedPassword);
+            stmt.setString(2, email);
+            stmt.executeUpdate();
+            result = 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+
+    }
+
     // return all users in JSON format
     public String getUsers(String orgId) {
         String result = "";
@@ -306,7 +317,6 @@ public class Database {
 
     public String getUserByLogin(String login) {
         String result = "";
-        System.out.println("login: " + login);
         try {
             PreparedStatement stmt = conn.prepareStatement(
                     "SELECT users.id, users.name, users.email, users.login, users.role, users.status FROM users WHERE users.login = ?");
@@ -321,9 +331,28 @@ public class Database {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        System.out.println("result: " + result);
         return result;
     }
+
+    public String getUserByEmail(String email) {
+        String result = "";
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT users.id, users.name, users.email, users.login, users.role, users.status FROM users WHERE users.email = ?");
+            stmt.setString(1, email);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                result += "{\"id\":\"" + rs.getString("id") +
+                        "\",\"login\":\"" + rs.getString("login") + "\"}";
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
 
     public String getAttendance(String userId, String startDate, String endDate) {
         String result = "";

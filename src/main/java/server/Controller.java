@@ -3,6 +3,7 @@ package server;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,7 +30,9 @@ import org.json.*;
 @CrossOrigin(origins = "*")
 public class Controller {
 
-    public static final int TOKEN_EXPIRY_SECONDS = 60 * 60 * 2;
+    public static final int TOKEN_EXPIRY_SECONDS = 60 * 60 * 6;
+
+    public static final String X_AUTH_TOKEN = "X-Auth-Token";
 
     @Autowired
     private JavaMailSender emailSender;
@@ -72,14 +75,13 @@ public class Controller {
     }
 
     @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String register(@RequestBody String json) {
+    public @ResponseBody String register(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         String result = "";
 
         JSONObject jsonObject = new JSONObject(json);
         String id = jsonObject.getString("id");
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
-        String token = jsonObject.getString("token");
 
         // check if token is valid
         Token userToken = getToken(token);
@@ -97,6 +99,7 @@ public class Controller {
         return result;
     }
 
+    //not authenticated
     @PostMapping(value = "/registerorg", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String registerOrg(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
@@ -118,7 +121,7 @@ public class Controller {
     }
 
     @PostMapping(value = "/adduser", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String adduser(@RequestBody String json) {
+    public @ResponseBody String adduser(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
@@ -126,7 +129,6 @@ public class Controller {
         String password = jsonObject.getString("password");
         int role = jsonObject.getInt("role");
 
-        String token = jsonObject.getString("token");
         String result = "";
 
         // check if token is valid
@@ -151,7 +153,7 @@ public class Controller {
     }
 
     @PostMapping(value = "/updateuser", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String updateuser(@RequestBody String json) {
+    public @ResponseBody String updateuser(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         System.out.println(jsonObject.toString());
         String name = jsonObject.getString("name");
@@ -160,7 +162,6 @@ public class Controller {
         String email = jsonObject.getString("email");
         int role = jsonObject.getInt("role");
         int status = jsonObject.getInt("status");
-        String token = jsonObject.getString("token");
         String result = "";
 
         // check if token is valid
@@ -179,11 +180,10 @@ public class Controller {
     }
 
     @PostMapping(value = "/checkin", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String checkin(@RequestBody String json) {
+    public @ResponseBody String checkin(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         System.out.println("jsonObject: " + jsonObject); 
         String username = jsonObject.getString("login");
-        String token = jsonObject.getString("token");
         String meetingId = jsonObject.getString("meetingId");
         String result = "";
 
@@ -210,10 +210,9 @@ public class Controller {
     }
 
     @PostMapping(value = "/checkout", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String checkout(@RequestBody String json) {
+    public @ResponseBody String checkout(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         String username = jsonObject.getString("login");
-        String token = jsonObject.getString("token");
         String meetingId = jsonObject.getString("meetingId");
         String result = "";
 
@@ -233,6 +232,7 @@ public class Controller {
         return result;
     }
 
+    //not authenticated
     @PostMapping(value = "/forgotpassword", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String forgotPassword(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
@@ -265,6 +265,7 @@ public class Controller {
         return result;
     }
 
+    //not authenticated
     @PostMapping(value = "/resetpassword", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String resetPassword(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
@@ -293,7 +294,7 @@ public class Controller {
 
 
     @GetMapping(value = "/users", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String users(@RequestParam String token) {
+    public @ResponseBody String users(@RequestHeader(X_AUTH_TOKEN) String token) {
 
         // check if token is valid
         Token userToken = getToken(token);
@@ -307,19 +308,30 @@ public class Controller {
     }
 
     @GetMapping(value = "/user", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String user(@RequestParam String userId) {
+    public @ResponseBody String user(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam String userId) {
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
         Database db = new Database();
         String result = db.getUser(userId);
         return result;
     }
 
     @GetMapping(value = "/userbylogin", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String userbylogin(@RequestParam String login) {
+    public @ResponseBody String userbylogin(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam String login) {
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
         Database db = new Database();
         String result = db.getUserByLogin(login);
         return result;
     }
 
+    //not authenticated
     @GetMapping(value = "/attendance", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String attendance(@RequestParam String userId, @RequestParam(value = "startDate", defaultValue = "") String startDate,
     @RequestParam(value = "endDate", defaultValue = "") String endDate) {
@@ -328,6 +340,7 @@ public class Controller {
         return result;
     }
 
+    //not authenticated
     @GetMapping(value = "/percentages", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String percentages(@RequestParam String userId, @RequestParam(value = "startDate", defaultValue = "") String startDate,
     @RequestParam(value = "endDate", defaultValue = "") String endDate) {
@@ -337,8 +350,9 @@ public class Controller {
     }
 
     @GetMapping(value = "/reportbydate", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String reportByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
-            @RequestParam(value = "endDate", defaultValue = "") String endDate, @RequestParam String token) {
+    public @ResponseBody String reportByDate(@RequestHeader(X_AUTH_TOKEN) String token, 
+            @RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
 
         // check if token is valid
         Token userToken = getToken(token);
@@ -352,8 +366,9 @@ public class Controller {
     }
 
     @GetMapping(value = "/rawdatabydate", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String rawDataByDate(@RequestParam(value = "startDate", defaultValue = "") String startDate,
-            @RequestParam(value = "endDate", defaultValue = "") String endDate, @RequestParam String token) {
+    public @ResponseBody String rawDataByDate(@RequestHeader(X_AUTH_TOKEN) String token, 
+            @RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
 
         // check if token is valid
         Token userToken = getToken(token);
@@ -367,7 +382,7 @@ public class Controller {
     }
 
     @GetMapping(value = "/recentmeetings", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String recentMeetings(@RequestParam String limit, @RequestParam String token) {
+    public @ResponseBody String recentMeetings(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam String limit) {
 
         // check if token is valid
         Token userToken = getToken(token);
@@ -385,27 +400,45 @@ public class Controller {
     }
 
     @GetMapping(value = "/topattendees", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String topAttendees(@RequestParam(value = "startDate", defaultValue = "") String startDate,
+    public @ResponseBody String topAttendees(@RequestHeader(X_AUTH_TOKEN) String token, 
+            @RequestParam(value = "startDate", defaultValue = "") String startDate,
             @RequestParam(value = "endDate", defaultValue = "") String endDate, 
-            @RequestParam(value = "limit") String limit) {
+            @RequestParam(value = "limit") String limit,
+            @RequestParam(value = "type") String type) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
         Database db = new Database();
         int size = 5;
         if (limit != null) {
             size = Integer.parseInt(limit);
         }
-        String result = db.getUsersBetweenDates(startDate, endDate, size);
+        String result = db.getUsersBetweenDates(userToken.getOrgId(), startDate, endDate, size, type);
         return result;
     }
 
     @GetMapping(value = "/attendees", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String attendees(@RequestParam(value = "meetingId") String meetingId) {
+    public @ResponseBody String attendees(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingId") String meetingId) {
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
         Database db = new Database();
         String result = db.getAttendees(meetingId);
         return result;
     }
 
     @GetMapping(value = "/meeting", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String meeting(@RequestParam(value = "meetingId") String meetingId) {
+    public @ResponseBody String meeting(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingId") String meetingId) {
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
         Database db = new Database();
         String result = db.getMeeting(meetingId);
         System.out.println("result: " + result);
@@ -413,8 +446,8 @@ public class Controller {
     }
 
     @GetMapping(value = "/meetings", produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String meetings(@RequestParam String token) {
-
+    public @ResponseBody String meetings(@RequestHeader(X_AUTH_TOKEN) String token) {
+        System.out.println("token: " + token);
         // check if token is valid
         Token userToken = getToken(token);
         if (userToken == null || userToken.isExpired()) {
@@ -426,10 +459,7 @@ public class Controller {
     }
 
     @PostMapping(value = "/startmeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String startmeeting(@RequestBody String json) {
-        JSONObject jsonObject = new JSONObject(json);
-        System.out.println("jsonObject: " + jsonObject); 
-        String token = jsonObject.getString("token");
+    public @ResponseBody String startmeeting(@RequestHeader(X_AUTH_TOKEN) String token) {
         String result = "";
 
         // check if token is valid
@@ -451,10 +481,9 @@ public class Controller {
     
 
     @PostMapping(value = "/closemeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String closemeeting(@RequestBody String json) {
+    public @ResponseBody String closemeeting(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         System.out.println("jsonObject: " + jsonObject); 
-        String token = jsonObject.getString("token");
         String meetingId = jsonObject.getString("meetingId");
         String result = "";
 
@@ -475,10 +504,9 @@ public class Controller {
     }
 
     @PostMapping(value = "/changemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String changeMeetingType(@RequestBody String json) {
+    public @ResponseBody String changeMeetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         System.out.println("jsonObject: " + jsonObject); 
-        String token = jsonObject.getString("token");
         String meetingId = jsonObject.getString("meetingId");
         String result = "";
 

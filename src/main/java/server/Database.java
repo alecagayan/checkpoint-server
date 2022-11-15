@@ -496,22 +496,24 @@ public class Database {
     }
 
     // return all users and meeting percentage between given dates in JSON format
-    public String getUsersBetweenDates(String startDate, String endDate, int limit) {
+    public String getUsersBetweenDates(String orgId, String startDate, String endDate, int limit, String type) {
         String result = "";
         try {
             // select all users from users table and select attendee count from attendees
             // table and join
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ?) GROUP BY users.id order by attendee_count desc limit ?");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ?) GROUP BY users.id order by attendee_count desc limit ?");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
-            stmt.setInt(3, limit);
+            stmt.setString(3, orgId);
+            stmt.setInt(4, limit);
             ResultSet rs = stmt.executeQuery();
 
             PreparedStatement meeting_count = conn.prepareStatement(
-                    "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ?");
+                    "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?");
             meeting_count.setString(1, startDate);
             meeting_count.setString(2, endDate);
+            meeting_count.setString(3, orgId);
             ResultSet meeting_rs = meeting_count.executeQuery();
 
             int countmeeting = 1;

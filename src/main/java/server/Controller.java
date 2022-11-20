@@ -445,6 +445,19 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/meetingtype", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String meetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingTypeId") String meetingTypeId) {
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+        Database db = new Database();
+        String result = db.getMeetingType(meetingTypeId);
+        System.out.println("result: " + result);
+        return result;
+    }
+
     @GetMapping(value = "/meetings", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String meetings(@RequestHeader(X_AUTH_TOKEN) String token) {
         System.out.println("token: " + token);
@@ -457,6 +470,33 @@ public class Controller {
         String result = db.getMeetings(userToken.getOrgId());
         return result;
     }
+
+    @GetMapping(value = "/meetingtypes", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String meetingTypes(@RequestHeader(X_AUTH_TOKEN) String token) {
+        System.out.println("token: " + token);
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+        Database db = new Database();
+        String result = db.getMeetingTypes(userToken.getOrgId());
+        return result;
+    }
+
+    @GetMapping(value = "/meetingswithtype", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String meetingsWithType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingTypeId") String meetingTypeId) {
+        System.out.println("token: " + token);
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+        Database db = new Database();
+        String result = db.getMeetingsWithType(userToken.getOrgId() ,meetingTypeId);
+        return result;
+    }
+    
 
     @PostMapping(value = "/startmeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String startmeeting(@RequestHeader(X_AUTH_TOKEN) String token) {
@@ -503,11 +543,13 @@ public class Controller {
         return result;
     }
 
-    @PostMapping(value = "/changemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public @ResponseBody String changeMeetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
+    @PostMapping(value = "/updatemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String updateMeetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         System.out.println("jsonObject: " + jsonObject); 
-        String meetingId = jsonObject.getString("meetingId");
+        String meetingTypeId = jsonObject.getString("id");
+        String name = jsonObject.getString("name");
+        String multiplier = jsonObject.getString("multiplier");
         String result = "";
 
         // check if token is valid
@@ -518,7 +560,32 @@ public class Controller {
         }
 
         Database db = new Database();
-        if (db.changeMeetingType(meetingId) == 0) {
+        if (db.updateMeetingType(meetingTypeId, name, multiplier) == 0) {
+            result = "{\"meeting\":\"" + meetingTypeId + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/changemeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String changeMeetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        System.out.println("jsonObject: " + jsonObject); 
+        String meetingId = jsonObject.getString("meetingId");
+        String meetingTypeId = jsonObject.getString("meetingTypeId");
+
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        Database db = new Database();
+        if (db.changeMeetingType(meetingId, meetingTypeId) == 0) {
             result = "{\"meeting\":\"" + meetingId + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";

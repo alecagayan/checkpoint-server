@@ -322,10 +322,10 @@ public class Controller {
     @GetMapping(value = "/userbylogin", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String userbylogin(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam String login) {
         // check if token is valid
-        Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
-            return "{\"error\":\"invalid token\"}";
-        }
+        // Token userToken = getToken(token);
+        // if (userToken == null || userToken.isExpired()) {
+        //     return "{\"error\":\"invalid token\"}";
+        // }
         Database db = new Database();
         String result = db.getUserByLogin(login);
         return result;

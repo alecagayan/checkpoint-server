@@ -415,23 +415,24 @@ public class Database {
 
         try {
             //get total amount of meeting hours between given dates
-            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND type = 0");
+            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND meetingtype = 1");
             meeting_hours.setString(1, startDate);
             meeting_hours.setString(2, endDate);
             ResultSet hours_rs = meeting_hours.executeQuery();
 
             //get total amount of hours attended by user between given dates
-            PreparedStatement attended_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_attended_hours FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ? AND meetings.opentime >= ? AND meetings.opentime <= ?");
+            PreparedStatement attended_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_attended_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours FROM meetings JOIN attendees ON meetings.id = attendees.meeting_id WHERE attendees.attendee_id = ? AND meetings.opentime >= ? AND meetings.opentime <= ?");
             attended_hours.setString(1, userId);
             attended_hours.setString(2, startDate);
             attended_hours.setString(3, endDate);
             ResultSet attended_rs = attended_hours.executeQuery();
+            
 
             //calculate percentage
             if (hours_rs.next() && attended_rs.next()) {
                 double total_meeting_hours = hours_rs.getDouble("total_meeting_hours");
-                double total_attended_hours = attended_rs.getDouble("total_attended_hours");
-                double percentage = total_attended_hours / total_meeting_hours * 100;
+                double multiplied_hours = attended_rs.getDouble("multiplied_hours");
+                double percentage = multiplied_hours / total_meeting_hours * 100;
                 result = String.valueOf(df.format(percentage));
             }
 
@@ -459,7 +460,7 @@ public class Database {
 
             // if meeting has multiplier in meeting_type table, multiply users hours at that meeting by multiplier
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
             stmt.setString(3, orgId);
@@ -467,11 +468,18 @@ public class Database {
 
             //get total amount of meeting hours between given dates
             PreparedStatement meeting_hours = conn.prepareStatement(
-                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ? AND type = 0");
+                    "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ?");
             meeting_hours.setString(1, startDate);
             meeting_hours.setString(2, endDate);
             meeting_hours.setString(3, orgId);
             ResultSet hours_rs = meeting_hours.executeQuery();
+
+            PreparedStatement adj_meeting_hours = conn.prepareStatement(
+                "SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND org = ? AND meetingtype = 1");
+                adj_meeting_hours.setString(1, startDate);
+                adj_meeting_hours.setString(2, endDate);
+                adj_meeting_hours.setString(3, orgId);
+            ResultSet adj_hours_rs = adj_meeting_hours.executeQuery();
 
             PreparedStatement meeting_count = conn.prepareStatement(
                     "SELECT COUNT(id) AS meeting_count FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?");
@@ -490,6 +498,12 @@ public class Database {
                 total_meeting_hours = hours_rs.getDouble("total_meeting_hours");
             }
 
+            double adj_total_meeting_hours = 0;
+            while (adj_hours_rs.next()) {
+                adj_total_meeting_hours = adj_hours_rs.getDouble("total_meeting_hours");
+            }
+
+            System.out.println("adj_total_meeting_hours: " + adj_total_meeting_hours);
             DecimalFormat df = new DecimalFormat();
             df.setMaximumFractionDigits(2);
 
@@ -500,7 +514,7 @@ public class Database {
                         "\",\"login\":\"" + rs.getString("login") +
                         "\",\"attendee_count\":\"" + df.format(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) +
                         "\",\"hour_percentage\":\"" + df.format(rs.getDouble("total_hours") / (total_meeting_hours + 0.0) * 100) +
-                        "\",\"multiplied_hour_percentage\":\"" + df.format(rs.getDouble("multiplied_hours") / (total_meeting_hours + 0.0) * 100) +
+                        "\",\"multiplied_hour_percentage\":\"" + df.format(rs.getDouble("multiplied_hours") / (adj_total_meeting_hours + 0.0) * 100) +
                         "\",\"total_hours\":\"" + df.format(rs.getDouble("total_hours")) + "\"},";
             }
             if (result.length() > 0) {

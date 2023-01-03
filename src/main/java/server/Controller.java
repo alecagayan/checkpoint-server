@@ -144,7 +144,7 @@ public class Controller {
         }
 
         Database db = new Database();
-        if (db.addUser(name, email, username, role, 1, password) == 0) {
+        if (db.addUser(name, email, username, role, 1, password, userToken) == 0) {
             result = "{\"user\":\"" + username + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
@@ -537,6 +537,30 @@ public class Controller {
         Database db = new Database();
         if (db.closeMeeting(meetingId) == 0) {
             result = "{\"meeting\":\"" + meetingId + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
+    @PostMapping(value = "/addmeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String addMeetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String name = jsonObject.getString("name");
+        String multiplier = jsonObject.getString("multiplier");
+
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        Database db = new Database();
+        if (db.addMeetingType(name, multiplier, userToken) == 0) {
+            result = "{\"meeting type\":\"" + name + "\"}";
         } else {
             result = "{\"error\":\"badness occurred\"}";
         }

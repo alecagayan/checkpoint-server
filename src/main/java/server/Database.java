@@ -129,6 +129,13 @@ public class Database {
             userUpdate.setInt(2, ownerId);
             userUpdate.executeUpdate();
 
+            // add "Required Meeting" meeting type with multiplier 1
+            PreparedStatement meetingTypeReg = conn.prepareStatement("INSERT INTO meeting_types (name, multiplier, org) VALUES (?, ?, ?)");
+            meetingTypeReg.setString(1, "Required Meeting");
+            meetingTypeReg.setInt(2, 1);
+            meetingTypeReg.setInt(3, orgIdInt);
+            meetingTypeReg.executeUpdate();
+
             result = 0;
 
         } catch (SQLException e) {
@@ -198,7 +205,7 @@ public class Database {
     // name, email, username in
     // 0 = success
     // 1 = error
-    public int addUser(String name, String email, String username, int role, int status, String password) {
+    public int addUser(String name, String email, String username, int role, int status, String password, Token userToken) {
         int result = 1;
         if (name == null || name.trim().length() == 0) {
             return result;
@@ -212,13 +219,14 @@ public class Database {
         // encrypt password
         String encryptedPassword = passwordEncoder.encode(password);
         try {
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (name, email, login, role, status, password) VALUES (?, ?, ?, ?, ?, ?)");
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (name, email, login, role, status, password, org) VALUES (?, ?, ?, ?, ?, ?, ?)");
             stmt.setString(1, name);
             stmt.setString(2, email);
             stmt.setString(3, username);
             stmt.setInt(4, role);
             stmt.setInt(5, status);
             stmt.setString(6, encryptedPassword);
+            stmt.setString(7, userToken.getOrgId());
             stmt.executeUpdate();
             result = 0;
         } catch (SQLException e) {
@@ -260,6 +268,21 @@ public class Database {
         }
         return result;
 
+    }
+
+    public int addMeetingType(String name, String multiplier, Token userToken) {
+        int result = 1;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO meeting_types (name, multiplier, org) VALUES (?, ?, ?)");
+            stmt.setString(1, name);
+            stmt.setString(2, multiplier);
+            stmt.setString(3, userToken.getOrgId());
+            stmt.executeUpdate();
+            result = 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
     }
 
     public int updateMeetingType(String id, String name, String multiplier) {
@@ -415,9 +438,10 @@ public class Database {
 
         try {
             //get total amount of meeting hours between given dates
-            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND meetingtype = 1");
+            PreparedStatement meeting_hours = conn.prepareStatement("SELECT SUM(TIMESTAMPDIFF(MINUTE,opentime,closetime))/60 AS total_meeting_hours FROM meetings WHERE opentime >= ? AND opentime  <= ? AND meetingtype = 1 AND org = (SELECT org FROM users WHERE id = ?)");
             meeting_hours.setString(1, startDate);
             meeting_hours.setString(2, endDate);
+            meeting_hours.setString(3, userId);
             ResultSet hours_rs = meeting_hours.executeQuery();
 
             //get total amount of hours attended by user between given dates
@@ -877,17 +901,22 @@ public class Database {
         int result = 0;
         try {
             // check if a meeting is already open
-            PreparedStatement stmt = conn.prepareStatement("SELECT id FROM meetings WHERE closetime IS NULL");
+            PreparedStatement stmt = conn.prepareStatement("SELECT id FROM meetings WHERE closetime IS NULL AND org = ?");
+            stmt.setString(1, userToken.getOrgId());
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 return 0;
             }
 
             stmt = conn.prepareStatement(
-                    "INSERT INTO meetings (opentime, openedby, org) VALUES (now(), (select id from users where login = ?), ?)",
+                    "INSERT INTO meetings (opentime, openedby, org, meetingtype) VALUES (now(), (select id from users where login = ?), ?, (select MIN(id) from meeting_types where org = ?))",
                     Statement.RETURN_GENERATED_KEYS);
+
+            String orgId = userToken.getOrgId();
+            System.out.println("orgId: " + orgId);
             stmt.setString(1, username);
-            stmt.setString(2, userToken.getOrgId());
+            stmt.setString(2, orgId);
+            stmt.setString(3, orgId);
             stmt.executeUpdate();
             rs = stmt.getGeneratedKeys();
             if (rs.next()) {

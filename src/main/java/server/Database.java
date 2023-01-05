@@ -39,7 +39,7 @@ public class Database {
     public int logIn(String login, String password) {
         int result = 1;
         try {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND role = 1 AND status = 1");
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE login = ? AND status = 1");
             stmt.setString(1, login);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
@@ -55,6 +55,23 @@ public class Database {
         }
         return result;
     }
+
+    public int getRoleByLogin(String login) {
+        int role = 0;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT role FROM users WHERE login = ?");
+            stmt.setString(1, login);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                role = rs.getInt("role");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return role;
+    }
+
+
 
     // id, name, email, registrationcode in
     // 0 = success
@@ -363,7 +380,11 @@ public class Database {
             
             while (rs.next()) {
                 result += "{\"id\":\"" + rs.getString("id") +
-                        "\",\"login\":\"" + rs.getString("login") + "\"}";
+                        "\",\"name\":\"" + rs.getString("name") +
+                        "\",\"email\":\"" + rs.getString("email") +
+                        "\",\"login\":\"" + rs.getString("login") + 
+                        "\",\"role\":\"" + rs.getInt("role") + 
+                        "\",\"status\":\"" + rs.getInt("status") + "\"}";
             }
 
         } catch (SQLException e) {

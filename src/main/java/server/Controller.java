@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
@@ -33,6 +32,9 @@ public class Controller {
     public static final int TOKEN_EXPIRY_SECONDS = 60 * 60 * 6;
 
     public static final String X_AUTH_TOKEN = "X-Auth-Token";
+
+    public static final String ROLE_ADMIN = "admin";
+    public static final String ROLE_USER = "user";
 
     @Autowired
     private JavaMailSender emailSender;
@@ -60,14 +62,15 @@ public class Controller {
         Database db = new Database();
         if (db.logIn(login, password) == 0) {
             String tokenValue = "";
-            try {
-                tokenValue = generateTokenForUser(login);
+            int role = db.getRoleByLogin(login);
+            try {                
+                tokenValue = generateTokenForUser(login, role == 1 ? ROLE_ADMIN : ROLE_USER );
             } catch (Exception e) {
                 e.printStackTrace();
                 result = "{\"error\":\"cannot generate token\"}";
                 return result;
             }
-            result = "{\"token\":\"" + tokenValue + "\"}";
+            result = "{\"token\":\"" + tokenValue + "\", \"role\":\"" + (role == 1 ? ROLE_ADMIN : ROLE_USER) + "\"}";
         } else {
             result = "{\"error\":\"invalid credentials\"}";
         }
@@ -85,7 +88,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -133,7 +136,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -166,7 +169,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || (!ROLE_ADMIN.equals(userToken.getRole()) && userToken.getUsername() != login)) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -189,7 +192,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -218,7 +221,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -298,7 +301,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
 
@@ -311,7 +314,7 @@ public class Controller {
     public @ResponseBody String user(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam String userId) {
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -322,12 +325,26 @@ public class Controller {
     @GetMapping(value = "/userbylogin", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String userbylogin(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam String login) {
         // check if token is valid
-        // Token userToken = getToken(token);
-        // if (userToken == null || userToken.isExpired()) {
-        //     return "{\"error\":\"invalid token\"}";
-        // }
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired() || (!ROLE_ADMIN.equals(userToken.getRole()) && !login.equals(userToken.getUsername()))) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
         Database db = new Database();
         String result = db.getUserByLogin(login);
+        return result;
+    }
+
+    @GetMapping(value = "/userbytoken", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String userbytoken(@RequestHeader(X_AUTH_TOKEN) String token) {
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+        Database db = new Database();
+        String result = db.getUserByLogin(userToken.getUsername());
+
         return result;
     }
 
@@ -356,7 +373,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
 
@@ -372,7 +389,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
 
@@ -386,7 +403,8 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        System.out.println("role: " + userToken.getRole());
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
 
@@ -408,7 +426,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -424,7 +442,7 @@ public class Controller {
     public @ResponseBody String attendees(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingId") String meetingId) {
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -436,7 +454,7 @@ public class Controller {
     public @ResponseBody String meeting(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingId") String meetingId) {
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -449,7 +467,7 @@ public class Controller {
     public @ResponseBody String meetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestParam(value = "meetingTypeId") String meetingTypeId) {
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -463,7 +481,7 @@ public class Controller {
         System.out.println("token: " + token);
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -476,7 +494,7 @@ public class Controller {
         System.out.println("token: " + token);
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -489,7 +507,7 @@ public class Controller {
         System.out.println("token: " + token);
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             return "{\"error\":\"invalid token\"}";
         }
         Database db = new Database();
@@ -504,7 +522,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -529,7 +547,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -553,7 +571,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -578,7 +596,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -603,7 +621,7 @@ public class Controller {
 
         // check if token is valid
         Token userToken = getToken(token);
-        if (userToken == null || userToken.isExpired()) {
+        if (userToken == null || userToken.isExpired() || !ROLE_ADMIN.equals(userToken.getRole())) {
             result = "{\"error\":\"invalid token\"}";
             return result;
         }
@@ -630,7 +648,7 @@ public class Controller {
         return "acceptable MIME type:" + MediaType.APPLICATION_JSON_VALUE;
     }
 
-    private String generateTokenForUser(String username) throws Exception {
+    private String generateTokenForUser(String username, String role) throws Exception {
         // check database for secret key
         Database db = new Database();
         String secretKey = db.getSecretKey();
@@ -646,7 +664,7 @@ public class Controller {
         String orgId = db.getOrgIdFromUsername(username);
 
         // generate token
-        Token token = new Token(username, now, expiry, "admin", orgId);
+        Token token = new Token(username, now, expiry, role, orgId);
         String encryptedToken = TokenUtil.encrypt(token, secretKey);
         return encryptedToken;
 

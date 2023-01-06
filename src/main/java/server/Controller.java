@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
@@ -107,16 +108,49 @@ public class Controller {
     public @ResponseBody String registerOrg(@RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
         String orgName = jsonObject.getString("orgName");
-        String orgId = jsonObject.getString("orgId");
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
         String username = jsonObject.getString("username");
-        String password = jsonObject.getString("password");
+        String captchaToken = jsonObject.getString("captchaToken");
+
+        Database db = new Database();
+
+
+        // check if captcha is valid with get request
+        String url = String.format("https://www.google.com/recaptcha/api/siteverify?secret=%s&response=%s",
+            URLEncoder.encode(db.getCaptchaSecret(), StandardCharsets.UTF_8),
+            URLEncoder.encode(captchaToken, StandardCharsets.UTF_8));
+
+        RestTemplate restTemplate = new RestTemplate();
+        String response = restTemplate.getForObject(url, String.class);
+        JSONObject captchaResponse = new JSONObject(response);
+        if (!captchaResponse.getBoolean("success")) {
+            return "{\"error\":\"invalid captcha\"}";
+        }
 
         String result = "";
-        Database db = new Database();
-        if (db.registerOrg(orgName, orgId, name, email, username, password) == 0) {
-            result = "{\"result\":\"" + "1" + "\"}";
+        if (db.registerOrg(orgName, name, email, username, "") == 0) {
+
+            // send password creation email
+            try {
+                String passwordToken = generatePasswordResetTokenForUser(email);
+
+                // get url from config
+                String encodedToken = URLEncoder.encode(passwordToken, StandardCharsets.UTF_8);
+                String resetUrl = Config.getProperty("base.url") + "/resetpassword/" + encodedToken;
+
+                // send email
+                String subject = "Checkpoint Password Reset";
+                String body = "Welcome to your new organization! Please click the following link to create your password: " + resetUrl + ". This link will expire in 30 minutes.";
+                String from = Config.getProperty("mail.from");
+                sendMessage(email, from, subject, body);
+                result = "{\"result\":\"" + "1" + "\"}";
+
+            }
+            catch (Exception e) {
+                result = "{\"error\":\"badness occurred\"}";
+            }
+
         } else {
             result = "{\"error\":\"badness occurred\"}";
         }
@@ -129,7 +163,6 @@ public class Controller {
         String name = jsonObject.getString("name");
         String email = jsonObject.getString("email");
         String username = jsonObject.getString("username");
-        String password = jsonObject.getString("password");
         int role = jsonObject.getInt("role");
 
         String result = "";
@@ -141,14 +174,27 @@ public class Controller {
             return result;
         }
 
-        if (role == 1 && (password == null || password.isEmpty())) {
-            result = "{\"error\":\"password is required\"}";
-            return result;
-        }
-
         Database db = new Database();
-        if (db.addUser(name, email, username, role, 1, password, userToken) == 0) {
+        if (db.addUser(name, email, username, role, 1, "", userToken) == 0) {
             result = "{\"user\":\"" + username + "\"}";
+
+            //send user password creation email
+            try {
+                String passwordToken = generatePasswordResetTokenForUser(email);
+
+                // get url from config
+                String encodedToken = URLEncoder.encode(passwordToken, StandardCharsets.UTF_8);
+                String resetUrl = Config.getProperty("base.url") + "/resetpassword/" + encodedToken;
+
+                // send email
+                String subject = "Checkpoint Password Reset";
+                String body = "Please click the following link to create your password: " + resetUrl + ". This link will expire in 30 minutes.";
+                String from = Config.getProperty("mail.from");
+                sendMessage(email, from, subject, body);
+            }
+            catch (Exception e) {
+                result = "{\"error\":\"badness occurred\"}";
+            }
         } else {
             result = "{\"error\":\"badness occurred\"}";
         }
@@ -357,11 +403,68 @@ public class Controller {
         return result;
     }
 
+    @GetMapping(value = "/attendancebytoken", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String attendanceByToken(@RequestHeader(X_AUTH_TOKEN) String token, 
+            @RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
+        Database db = new Database();
+        String getId = db.getUserByLogin(userToken.getUsername());
+        JSONObject jsonObject = new JSONObject(getId);
+        String userId = jsonObject.getString("id");
+        String result = db.getAttendance(userId, startDate, endDate);
+        return result;
+    }
+
+    @GetMapping(value = "/attendancebytokenbetweendates", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String attendanceByTokenBetweenDates(@RequestHeader(X_AUTH_TOKEN) String token, 
+            @RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
+        Database db = new Database();
+        String getId = db.getUserByLogin(userToken.getUsername());
+        JSONObject jsonObject = new JSONObject(getId);
+        String userId = jsonObject.getString("id");
+        String result = db.getAttendance(userId, startDate, endDate);
+        return result;
+    }
+
     //not authenticated
     @GetMapping(value = "/percentages", produces = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String percentages(@RequestParam String userId, @RequestParam(value = "startDate", defaultValue = "") String startDate,
     @RequestParam(value = "endDate", defaultValue = "") String endDate) {
         Database db = new Database();
+        String result = db.getPercentages(userId, startDate, endDate);
+        return result;
+    }
+
+    @GetMapping(value = "/percentagesbytokenbetweendates", produces = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String percentagesByTokenBetweenDates(@RequestHeader(X_AUTH_TOKEN) String token, 
+            @RequestParam(value = "startDate", defaultValue = "") String startDate,
+            @RequestParam(value = "endDate", defaultValue = "") String endDate) {
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired()) {
+            return "{\"error\":\"invalid token\"}";
+        }
+
+        Database db = new Database();
+        String getId = db.getUserByLogin(userToken.getUsername());
+        JSONObject jsonObject = new JSONObject(getId);
+        String userId = jsonObject.getString("id");
         String result = db.getPercentages(userId, startDate, endDate);
         return result;
     }

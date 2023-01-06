@@ -103,7 +103,7 @@ public class Database {
         return result;
     }
 
-    public int registerOrg(String orgName, String orgId, String name, String email, String username, String password) {
+    public int registerOrg(String orgName, String name, String email, String username, String password) {
         //create new organization with name orgName and short orgId
         int result = 1;
         int orgIdInt = 0;
@@ -125,19 +125,14 @@ public class Database {
                 ownerId = rs.getInt("id");
             }
 
-            // add organization
-            PreparedStatement orgReg = conn.prepareStatement("INSERT INTO organizations (name, short, owner) VALUES (?, ?, ?)");
+            // add organization and get its id
+            PreparedStatement orgReg = conn.prepareStatement("INSERT INTO organizations (name, owner) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS);
             orgReg.setString(1, orgName);
-            orgReg.setString(2, orgId);
-            orgReg.setInt(3, ownerId);
+            orgReg.setInt(2, ownerId);
             orgReg.executeUpdate();
-
-            // get org id
-            stmt = conn.prepareStatement("SELECT id FROM organizations WHERE short = ?");
-            stmt.setString(1, orgId);
-            rs = stmt.executeQuery();
-            if (rs.next()) {
-                orgIdInt = rs.getInt("id");
+            ResultSet rs2 = orgReg.getGeneratedKeys();
+            if (rs2.next()) {
+                orgIdInt = rs2.getInt(1);
             }
             
             //update user to assign to org
@@ -415,6 +410,7 @@ public class Database {
 
     public String getAttendance(String userId, String startDate, String endDate) {
         String result = "";
+        System.out.println("called for user " + userId + " from " + startDate + " to " + endDate);
         PreparedStatement stmt = null;
         try {
             // if startdate and enddate are blank, then select all
@@ -1027,6 +1023,21 @@ public class Database {
             e.printStackTrace();
         }
         return result;
+    }
+
+    public String getCaptchaSecret() {
+        String result = null;
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT value FROM params WHERE name = 'captcha_secret'");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                result = rs.getString("value");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+
     }
 
     private String emptyIfNull(String s) {

@@ -38,6 +38,10 @@ public class Token {
         return org;
     }
 
+    public Date getExpiryDate() {
+        return expiryDate;
+    }
+
     public String toString() {
         return "v1|" + username + "|" + issueDate.getTime() + "|" + expiryDate.getTime() + "|" + role + "|" + org + "|v1";
     }

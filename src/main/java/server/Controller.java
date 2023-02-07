@@ -60,18 +60,26 @@ public class Controller {
         String login = jsonObject.getString("username");
         String password = jsonObject.getString("password");
         String result = "";
+
+        System.out.println("login: " + login + " password: " + password);
+
+
         Database db = new Database();
         if (db.logIn(login, password) == 0) {
             String tokenValue = "";
+            long expiryDate = 0;
+
             int role = db.getRoleByLogin(login);
             try {                
                 tokenValue = generateTokenForUser(login, role == 1 ? ROLE_ADMIN : ROLE_USER );
+                expiryDate = getToken(tokenValue).getExpiryDate().getTime();
             } catch (Exception e) {
                 e.printStackTrace();
                 result = "{\"error\":\"cannot generate token\"}";
                 return result;
             }
-            result = "{\"token\":\"" + tokenValue + "\", \"role\":\"" + (role == 1 ? ROLE_ADMIN : ROLE_USER) + "\"}";
+            result = "{\"token\":\"" + tokenValue + "\", \"role\":\"" + (role == 1 ? ROLE_ADMIN : ROLE_USER) + "\", \"expiry\":\"" + expiryDate + "\"}";
+            System.out.println("result: " + result);
         } else {
             result = "{\"error\":\"invalid credentials\"}";
         }
@@ -258,6 +266,42 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "/checkinbyusertoken", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String checkinbyusertoken(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        String user = jsonObject.getString("userToken");
+        String meetingId = jsonObject.getString("meetingId");
+        String result = "";
+
+        // check if token is valid
+        Token adminToken = getToken(token);
+        if (adminToken == null || adminToken.isExpired() || !ROLE_ADMIN.equals(adminToken.getRole())) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        // get login from userToken
+        Token userToken = getToken(user);
+        if (userToken == null /*|| userToken.isExpired()*/) {
+            result = "{\"error\":\"invalid user token\"}";
+            return result;
+        }
+
+        String username = userToken.getUsername();
+        Database db = new Database();
+
+
+        if (db.isMeetingClosed(meetingId)) {
+            result = "{\"error\":\"meeting is closed\"}";
+            return result;
+        }
+
+        int returnCode = db.checkIn(username, meetingId, userToken);
+        result = "{\"result\":\"" + returnCode + "\"}";
+
+        return result;
+    }
+
     @PostMapping(value = "/checkout", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String checkout(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);
@@ -297,7 +341,7 @@ public class Controller {
 
                 // get url from config
                 String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
-                String resetUrl = Config.getProperty("base.url") + "/resetpassword/" + encodedToken;
+                String resetUrl = Config.getProperty("base.url") + "/resetpassword?token=" + encodedToken;
 
                 // send email
                 String subject = "Checkpoint Password Reset";
@@ -466,6 +510,7 @@ public class Controller {
         JSONObject jsonObject = new JSONObject(getId);
         String userId = jsonObject.getString("id");
         String result = db.getPercentages(userId, startDate, endDate);
+        System.out.println("returning: " + result);
         return result;
     }
 
@@ -770,7 +815,6 @@ public class Controller {
         Token token = new Token(username, now, expiry, role, orgId);
         String encryptedToken = TokenUtil.encrypt(token, secretKey);
         return encryptedToken;
-
     }
 
     private String generatePasswordResetTokenForUser(String email) throws Exception {

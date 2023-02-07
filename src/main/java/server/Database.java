@@ -176,13 +176,22 @@ public class Database {
             stmt.setString(2, orgId);   
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                String attendeeId = rs.getString("id");
-                stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org) VALUES (?, ?, ?)");
+                //check if meeting id matches user org
+                stmt = conn.prepareStatement("SELECT * FROM meetings WHERE id = ? AND org = ?");
                 stmt.setString(1, meetingId);
-                stmt.setString(2, attendeeId);
-                stmt.setString(3, orgId);
-                stmt.executeUpdate();
-                result = 0;
+                stmt.setString(2, orgId);
+                ResultSet rs2 = stmt.executeQuery();
+                if (rs2.next()) {
+                    String attendeeId = rs.getString("id");
+                    stmt = conn.prepareStatement("INSERT INTO attendees (meeting_id, attendee_id, org) VALUES (?, ?, ?)");
+                    stmt.setString(1, meetingId);
+                    stmt.setString(2, attendeeId);
+                    stmt.setString(3, orgId);
+                    stmt.executeUpdate();
+                    result = 0;
+                } else {
+                    result = 2;
+                }
 
             } else {
                 result = 2;
@@ -439,6 +448,7 @@ public class Database {
                 result = result.substring(0, result.length() - 1);
             }
             result = "[" + result + "]";
+            System.out.println("returning: " + result);
         } catch (SQLException e) {
             e.printStackTrace();
         }

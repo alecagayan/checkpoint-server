@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Date;
-
 import org.json.*;
 
 @RestController
@@ -145,7 +144,7 @@ public class Controller {
 
                 // get url from config
                 String encodedToken = URLEncoder.encode(passwordToken, StandardCharsets.UTF_8);
-                String resetUrl = Config.getProperty("base.url") + "/resetpassword/" + encodedToken;
+                String resetUrl = Config.getProperty("base.url") + "/resetpassword?token=" + encodedToken;
 
                 // send email
                 String subject = "Checkpoint Password Reset";
@@ -782,8 +781,6 @@ public class Controller {
         }
         return result;
     }
-
-
 
     @PostMapping(value = "/test", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> example() {

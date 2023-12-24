@@ -567,12 +567,12 @@ public class Database {
                     order by users.name asc
              */
 
-            PreparedStatement intelliscore = conn.prepareStatement(
+            PreparedStatement intelliscoreStmt = conn.prepareStatement(
                     "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)) / 60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 60 as multiplied_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) / (SELECT SUM(TIMESTAMPDIFF(MINUTE, meetings.opentime, meetings.closetime)) / 60 FROM meetings WHERE meetingtype = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 60 as intelliscore FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
-            intelliscore.setString(1, startDate);
-            intelliscore.setString(2, endDate);
-            intelliscore.setString(3, orgId);
-            ResultSet intelliscore_rs = intelliscore.executeQuery();
+            intelliscoreStmt.setString(1, startDate);
+            intelliscoreStmt.setString(2, endDate);
+            intelliscoreStmt.setString(3, orgId);
+            ResultSet intelliscore_rs = intelliscoreStmt.executeQuery();
 
             double intelliscore = intelliscore_rs.getDouble("intelliscore");
 

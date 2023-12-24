@@ -574,6 +574,8 @@ public class Database {
             intelliscore.setString(3, orgId);
             ResultSet intelliscore_rs = intelliscore.executeQuery();
 
+            double intelliscore = intelliscore_rs.getDouble("intelliscore");
+
             int countmeeting = 1;
             while (meeting_rs.next()) {
                 countmeeting = meeting_rs.getInt("meeting_count");
@@ -601,7 +603,7 @@ public class Database {
                         "\",\"attendee_count\":\"" + df.format(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) +
                         "\",\"hour_percentage\":\"" + df.format(rs.getDouble("total_hours") / (total_meeting_hours + 0.0) * 100) +
                         "\",\"multiplied_hour_percentage\":\"" + df.format(rs.getDouble("multiplied_hours") / (adj_total_meeting_hours + 0.0) * 100) +
-                        "\",\"intelliscore\":\"" + df.format(intelliscore_rs.getDouble("intelliscore")) +
+                        "\",\"intelliscore\":\"" + intelliscore +
                         "\",\"total_hours\":\"" + df.format(rs.getDouble("total_hours")) + "\"},";
             }
             if (result.length() > 0) {

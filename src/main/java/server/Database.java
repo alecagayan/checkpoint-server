@@ -507,7 +507,7 @@ public class Database {
 
             // if meeting has multiplier in meeting_type table, multiply users hours at that meeting by multiplier
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) / (SELECT SUM(TIMESTAMPDIFF(MINUTE, meetings.opentime, meetings.closetime)) / 60 FROM meetings WHERE meetingtype = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 60 as intelliscore FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
             stmt.setString(3, orgId);
@@ -534,47 +534,6 @@ public class Database {
             meeting_count.setString(2, endDate);
             meeting_count.setString(3, orgId);
             ResultSet meeting_rs = meeting_count.executeQuery();
-
-            // query that calculates (meeting type hours attended / meeting type hours total) * meeting type weight + ... + (meeting type hours attended / meeting type hours total) * meeting type weight
-            /*
-             * SELECT users.id,
-                users.name,
-                users.email,
-                users.login,
-                COUNT(attendees.attendee_id)                               AS attendee_count,
-                SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)) / 60 AS total_hours,
-                SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) * (SELECT multiplier
-                                                                        FROM meeting_types
-                                                                        WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) /
-                60                                                         as multiplied_hours,
-                SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) /
-                    (SELECT SUM(TIMESTAMPDIFF(MINUTE, meetings.opentime, meetings.closetime)) / 60
-                        FROM meetings
-                        WHERE meetingtype = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))
-                    * (SELECT multiplier
-
-                        FROM meeting_types
-                        WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) /
-                60                                                         as intelliscore
-                    FROM users
-                            LEFT JOIN attendees ON users.id = attendees.attendee_id
-                    WHERE attendees.meeting_id IN (SELECT id
-                                                FROM meetings
-                                                WHERE opentime >= "2023-09-09 00:00:00"
-                                                    AND opentime <= "2023-12-23 00:00:00"
-                                                    AND org = 1)
-                    GROUP BY users.id
-                    order by users.name asc
-             */
-
-            PreparedStatement intelliscoreStmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)) / 60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 60 as multiplied_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) / (SELECT SUM(TIMESTAMPDIFF(MINUTE, meetings.opentime, meetings.closetime)) / 60 FROM meetings WHERE meetingtype = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 60 as intelliscore FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
-            intelliscoreStmt.setString(1, startDate);
-            intelliscoreStmt.setString(2, endDate);
-            intelliscoreStmt.setString(3, orgId);
-            ResultSet intelliscore_rs = intelliscoreStmt.executeQuery();
-
-            double intelliscore = intelliscore_rs.getDouble("intelliscore");
 
             int countmeeting = 1;
             while (meeting_rs.next()) {
@@ -603,7 +562,7 @@ public class Database {
                         "\",\"attendee_count\":\"" + df.format(rs.getInt("attendee_count") / (countmeeting + 0.0) * 100) +
                         "\",\"hour_percentage\":\"" + df.format(rs.getDouble("total_hours") / (total_meeting_hours + 0.0) * 100) +
                         "\",\"multiplied_hour_percentage\":\"" + df.format(rs.getDouble("multiplied_hours") / (adj_total_meeting_hours + 0.0) * 100) +
-                        "\",\"intelliscore\":\"" + intelliscore +
+                        "\",\"intelliscore\":\"" + df.format(rs.getDouble("intelliscore") * 100) +
                         "\",\"total_hours\":\"" + df.format(rs.getDouble("total_hours")) + "\"},";
             }
             if (result.length() > 0) {

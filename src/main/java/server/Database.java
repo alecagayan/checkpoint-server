@@ -507,10 +507,12 @@ public class Database {
 
             // if meeting has multiplier in meeting_type table, multiply users hours at that meeting by multiplier
             PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) / (SELECT SUM(TIMESTAMPDIFF(MINUTE, meetings.opentime, meetings.closetime)) / 60 FROM meetings WHERE meetingtype = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 60 as intelliscore FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
+                    "SELECT users.id, users.name, users.email, users.login, COUNT(attendees.attendee_id) AS attendee_count, SUM(TIMESTAMPDIFF(MINUTE,checkintime,checkouttime))/60 AS total_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime)*(SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id)))/60 as multiplied_hours, SUM(TIMESTAMPDIFF(MINUTE, checkintime, checkouttime) / (SELECT SUM(TIMESTAMPDIFF(MINUTE, meetings.opentime, meetings.closetime)) / 60 FROM meetings WHERE meetingtype = (SELECT meetingtype FROM meetings where id = attendees.meeting_id) AND  AND opentime >= ? AND opentime <= ?) * (SELECT multiplier FROM meeting_types WHERE id = (SELECT meetingtype FROM meetings where id = attendees.meeting_id))) / 600 as intelliscore FROM users LEFT JOIN attendees ON users.id = attendees.attendee_id WHERE attendees.meeting_id IN (SELECT id FROM meetings WHERE opentime >= ? AND opentime <= ? AND org = ?) GROUP BY users.id order by users.name asc");
             stmt.setString(1, startDate);
             stmt.setString(2, endDate);
-            stmt.setString(3, orgId);
+            stmt.setString(3, startDate);
+            stmt.setString(4, endDate);
+            stmt.setString(5, orgId);
             ResultSet rs = stmt.executeQuery();
 
             //get total amount of meeting hours between given dates

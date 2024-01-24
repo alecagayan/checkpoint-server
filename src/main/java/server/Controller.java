@@ -708,6 +708,29 @@ public class Controller {
         return result;
     }
 
+    @PostMapping(value = "/deletemeeting", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public @ResponseBody String deletemeeting(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
+        JSONObject jsonObject = new JSONObject(json);
+        System.out.println("jsonObject: " + jsonObject);
+        String meetingId = jsonObject.getString("meetingId");
+        String result = "";
+
+        // check if token is valid
+        Token userToken = getToken(token);
+        if (userToken == null || userToken.isExpired() /*|| !ROLE_ADMIN.equals(userToken.getRole())*/) {
+            result = "{\"error\":\"invalid token\"}";
+            return result;
+        }
+
+        Database db = new Database();
+        if (db.deleteMeeting(meetingId) == 0) {
+            result = "{\"meeting\":\"" + meetingId + "\"}";
+        } else {
+            result = "{\"error\":\"badness occurred\"}";
+        }
+        return result;
+    }
+
     @PostMapping(value = "/addmeetingtype", consumes = MediaType.APPLICATION_JSON_VALUE)
     public @ResponseBody String addMeetingType(@RequestHeader(X_AUTH_TOKEN) String token, @RequestBody String json) {
         JSONObject jsonObject = new JSONObject(json);

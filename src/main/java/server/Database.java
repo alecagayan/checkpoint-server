@@ -1000,6 +1000,25 @@ public class Database {
         return result;
     }
 
+    public int deleteMeeting(String meetingId) {
+        int result = 1;
+        try {
+
+            PreparedStatement stmt = conn.prepareStatement("DELETE FROM attendees WHERE meeting_id = ?");
+            stmt.setString(1, meetingId);
+            stmt.executeUpdate();
+
+            PreparedStatement stmt2 = conn.prepareStatement("DELETE FROM meetings WHERE id = ?");
+            stmt2.setString(1, meetingId);
+            stmt2.executeUpdate();
+            result = 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
     public int changeMeetingType(String meetingId, String meetingTypeId) {
         //get meeting type
         int result = 1;
